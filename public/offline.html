@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sin conexión — Mantenimiento</title>
+  <style>
+    body { font-family: system-ui, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #f9fafb; }
+    .card { background: white; border-radius: 16px; padding: 40px; max-width: 360px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+    h1 { font-size: 18px; color: #111827; margin: 16px 0 8px; }
+    p { color: #6b7280; font-size: 14px; margin: 0 0 24px; }
+    button { background: #2563eb; color: white; border: none; border-radius: 8px; padding: 10px 20px; font-size: 14px; cursor: pointer; }
+    button:hover { background: #1d4ed8; }
+    .icon { font-size: 48px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">📡</div>
+    <h1>Sin conexión</h1>
+    <p>No hay conexión a internet. Tus ejecuciones registradas offline se sincronizarán automáticamente cuando vuelva la red.</p>
+    <button onclick="window.location.reload()">Reintentar</button>
+  </div>
+</body>
+</html>

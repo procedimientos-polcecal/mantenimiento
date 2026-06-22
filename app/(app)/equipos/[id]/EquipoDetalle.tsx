@@ -113,7 +113,13 @@ export default function EquipoDetalle({ equipo, sectors, historial, canEdit, use
             {equipo.sectors?.plants?.name} · {equipo.sectors?.name}
           </p>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+          <Link
+            href={`/equipos/${equipo.id}/checklist`}
+            className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            Checklist
+          </Link>
           <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${statusColor}`}>
             {statusLabel}
           </span>
