@@ -5,11 +5,13 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 const TYPE_OPTIONS = [
-  { value: "PREVENTIVO",  label: "Preventivo" },
-  { value: "PREDICTIVO",  label: "Predictivo" },
-  { value: "CORRECTIVO",  label: "Correctivo" },
-  { value: "LUBRICACION", label: "Lubricación" },
-  { value: "INSPECCION",  label: "Inspección" },
+  { value: "Lubricacion",       label: "Lubricación" },
+  { value: "Inspeccion",        label: "Inspección" },
+  { value: "Limpieza",          label: "Limpieza" },
+  { value: "Ajuste",            label: "Ajuste" },
+  { value: "Reemplazo",         label: "Reemplazo" },
+  { value: "Revision_electrica",label: "Revisión eléctrica" },
+  { value: "Otro",              label: "Otro" },
 ];
 
 const SCHEDULE_OPTIONS = [
@@ -32,7 +34,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 const EMPTY_FORM = {
   equipment_id:    "",
-  maintenance_type:"PREVENTIVO",
+  maintenance_type:"Inspeccion",
   schedule_type:   "MENSUAL",
   interval_days:   "",
   next_date:       "",
