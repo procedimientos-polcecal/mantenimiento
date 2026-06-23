@@ -60,22 +60,22 @@ export default function UsuariosClient({ users }: { users: any[] }) {
         setSaving(false);
         return;
       }
-      const { data, error: authErr } = await supabase.auth.signUp({
-        email: form.email.trim(),
-        password: form.password,
+      const res = await fetch("/api/usuarios", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          full_name: form.full_name.trim(),
+          email: form.email.trim(),
+          password: form.password,
+          role: form.role,
+        }),
       });
-      if (authErr || !data.user) {
-        setError(authErr?.message ?? "Error al crear usuario.");
+      const json = await res.json();
+      if (!res.ok) {
+        setError(json.error ?? "Error al crear usuario.");
         setSaving(false);
         return;
       }
-      const { error: dbErr } = await supabase.from("app_users").insert({
-        id:        data.user.id,
-        full_name: form.full_name.trim(),
-        email:     form.email.trim(),
-        role:      form.role,
-      });
-      if (dbErr) { setError(dbErr.message); setSaving(false); return; }
     }
 
     setSaving(false);
