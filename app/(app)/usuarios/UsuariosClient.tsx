@@ -40,21 +40,34 @@ export default function UsuariosClient({ users }: { users: any[] }) {
   }
 
   async function save() {
-    if (!form.full_name.trim() || !form.email.trim()) {
-      setError("Nombre y email son obligatorios.");
+    if (!form.full_name.trim()) {
+      setError("El nombre es obligatorio.");
       return;
     }
     setSaving(true);
     setError("");
-    const supabase = createClient();
 
     if (editing) {
-      const { error: err } = await supabase
-        .from("app_users")
-        .update({ full_name: form.full_name.trim(), role: form.role })
-        .eq("id", editing.id);
-      if (err) { setError(err.message); setSaving(false); return; }
+      // PATCH — update name, role, and optionally password
+      if (form.password && form.password.length < 6) {
+        setError("La contraseña debe tener al menos 6 caracteres.");
+        setSaving(false);
+        return;
+      }
+      const res = await fetch("/api/usuarios", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id:        editing.id,
+          full_name: form.full_name.trim(),
+          role:      form.role,
+          password:  form.password || undefined,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setError(json.error ?? "Error al actualizar."); setSaving(false); return; }
     } else {
+      if (!form.email.trim()) { setError("El email es obligatorio."); setSaving(false); return; }
       if (!form.password || form.password.length < 6) {
         setError("La contraseña debe tener al menos 6 caracteres.");
         setSaving(false);
@@ -65,17 +78,13 @@ export default function UsuariosClient({ users }: { users: any[] }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           full_name: form.full_name.trim(),
-          email: form.email.trim(),
-          password: form.password,
-          role: form.role,
+          email:     form.email.trim(),
+          password:  form.password,
+          role:      form.role,
         }),
       });
       const json = await res.json();
-      if (!res.ok) {
-        setError(json.error ?? "Error al crear usuario.");
-        setSaving(false);
-        return;
-      }
+      if (!res.ok) { setError(json.error ?? "Error al crear usuario."); setSaving(false); return; }
     }
 
     setSaving(false);
@@ -142,11 +151,16 @@ export default function UsuariosClient({ users }: { users: any[] }) {
                   <input type="email" value={form.email} onChange={(e) => field("email", e.target.value)} className="input" />
                 </Field>
               )}
-              {!editing && (
-                <Field label="Contraseña" required>
-                  <input type="password" value={form.password} onChange={(e) => field("password", e.target.value)} className="input" />
-                </Field>
-              )}
+              <Field label={editing ? "Nueva contraseña (dejar vacío para no cambiar)" : "Contraseña"} required={!editing ? true : false}>
+                <input
+                  type="password"
+                  value={form.password}
+                  onChange={(e) => field("password", e.target.value)}
+                  className="input"
+                  placeholder={editing ? "Nueva contraseña..." : "Mínimo 6 caracteres"}
+                  autoComplete="new-password"
+                />
+              </Field>
               <Field label="Rol">
                 <select value={form.role} onChange={(e) => field("role", e.target.value)} className="input">
                   {ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
