@@ -14,6 +14,7 @@ export default async function DashboardPage() {
     { data: upcoming },
     { data: overdue },
     { data: plants },
+    { data: sectors },
     { data: recentExecutions },
   ] = await Promise.all([
     supabase.from("app_users").select("*").eq("id", user.id).single(),
@@ -34,6 +35,7 @@ export default async function DashboardPage() {
       .order("next_date", { ascending: true })
       .limit(10),
     supabase.from("plants").select("name").order("name"),
+    supabase.from("sectors").select("name, plants(name)").order("name"),
     supabase.from("maintenance_executions")
       .select("execution_status, executed_at")
       .order("executed_at", { ascending: false })
@@ -47,6 +49,7 @@ export default async function DashboardPage() {
       upcoming={upcoming ?? []}
       overdue={overdue ?? []}
       plants={plants ?? []}
+      sectors={sectors ?? []}
       recentExecutions={recentExecutions ?? []}
     />
   );

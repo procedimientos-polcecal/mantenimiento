@@ -6,13 +6,13 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend,
 } from "recharts";
 
-const STATUS_META: Record<string, { label: string; color: string; accent: string }> = {
-  OPERATIVO:         { label: "Operativo",        color: "#22C55E", accent: "#DCFCE7" },
-  EN_MANTENIMIENTO:  { label: "En mantenimiento", color: "#3B82F6", accent: "#DBEAFE" },
-  EN_REPARACION:     { label: "En reparación",    color: "#EF4444", accent: "#FEE2E2" },
-  STANDBY:           { label: "Standby",           color: "#F59E0B", accent: "#FEF3C7" },
-  FUERA_DE_SERVICIO: { label: "Fuera de servicio", color: "#94A3B8", accent: "#F1F5F9" },
-  DADO_DE_BAJA:      { label: "Dado de baja",      color: "#64748B", accent: "#F8FAFC" },
+const STATUS_META: Record<string, { label: string; color: string }> = {
+  OPERATIVO:         { label: "Operativo",        color: "#22C55E" },
+  EN_MANTENIMIENTO:  { label: "En mantenimiento", color: "#3B82F6" },
+  EN_REPARACION:     { label: "En reparación",    color: "#EF4444" },
+  STANDBY:           { label: "Standby",           color: "#F59E0B" },
+  FUERA_DE_SERVICIO: { label: "Fuera de servicio", color: "#94A3B8" },
+  DADO_DE_BAJA:      { label: "Dado de baja",      color: "#64748B" },
 };
 
 const ROLE_LABEL: Record<string, string> = {
@@ -20,24 +20,47 @@ const ROLE_LABEL: Record<string, string> = {
   gerente: "Gerente", operario: "Operario",
 };
 
-export default function DashboardClient({ appUser, equipment, upcoming, overdue, plants, recentExecutions }: {
+const PLANT_COLORS: Record<string, string> = {
+  POLYSAN:  "#F59E0B",
+  POLCECAL: "#22C55E",
+  AMBOS:    "#3B82F6",
+};
+
+export default function DashboardClient({ appUser, equipment, upcoming, overdue, plants, sectors, recentExecutions }: {
   appUser: any;
   equipment: any[];
   upcoming: any[];
   overdue: any[];
   plants: any[];
+  sectors: any[];
   recentExecutions: any[];
 }) {
   const [plantFilter, setPlantFilter] = useState("TODAS");
+  const [sectorFilter, setSectorFilter] = useState("TODOS");
 
-  const filteredEquipment = useMemo(() =>
+  // Sectors that belong to the selected plant
+  const availableSectors = useMemo(() =>
     plantFilter === "TODAS"
-      ? equipment
-      : equipment.filter((e) => (e.sectors as any)?.plants?.name === plantFilter),
-    [equipment, plantFilter]
+      ? sectors
+      : sectors.filter((s: any) => s.plants?.name === plantFilter),
+    [sectors, plantFilter]
   );
 
-  // Status donut data
+  // When plant changes, reset sector
+  function handlePlantChange(plant: string) {
+    setPlantFilter(plant);
+    setSectorFilter("TODOS");
+  }
+
+  const filteredEquipment = useMemo(() => {
+    return equipment.filter((e: any) => {
+      if (plantFilter !== "TODAS" && e.sectors?.plants?.name !== plantFilter) return false;
+      if (sectorFilter !== "TODOS" && e.sectors?.name !== sectorFilter) return false;
+      return true;
+    });
+  }, [equipment, plantFilter, sectorFilter]);
+
+  // Status donut
   const statusData = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const e of filteredEquipment) {
@@ -48,21 +71,54 @@ export default function DashboardClient({ appUser, equipment, upcoming, overdue,
       .filter((d) => d.value > 0);
   }, [filteredEquipment]);
 
-  // Criticality bar data per plant
-  const criticalityData = useMemo(() => {
+  // Criticality bars — grouped by sector when a plant is selected, by plant otherwise
+  const { criticalityData, criticalityKeys, criticalityColors } = useMemo(() => {
+    if (sectorFilter !== "TODOS") {
+      // Single sector selected — just show totals per criticality
+      const keys = ["ALTA", "MEDIA", "BAJA"];
+      const data = keys.map((crit) => ({
+        criticidad: crit,
+        Equipos: filteredEquipment.filter((e) => e.criticality === crit).length,
+      }));
+      return { criticalityData: data, criticalityKeys: ["Equipos"], criticalityColors: { Equipos: "#3B82F6" } };
+    }
+
+    if (plantFilter !== "TODAS") {
+      // Plant selected — group by sector
+      const plantSectors = sectors
+        .filter((s: any) => s.plants?.name === plantFilter)
+        .map((s: any) => s.name);
+      const colors = ["#3B82F6","#8B5CF6","#EC4899","#14B8A6","#F97316","#84CC16","#06B6D4","#A78BFA"];
+      const colorMap: Record<string, string> = {};
+      plantSectors.forEach((s, i) => { colorMap[s] = colors[i % colors.length]; });
+
+      const data = ["ALTA", "MEDIA", "BAJA"].map((crit) => {
+        const row: any = { criticidad: crit };
+        for (const s of plantSectors) {
+          row[s] = equipment.filter(
+            (e) => e.criticality === crit && e.sectors?.name === s && e.sectors?.plants?.name === plantFilter
+          ).length;
+        }
+        return row;
+      });
+      return { criticalityData: data, criticalityKeys: plantSectors, criticalityColors: colorMap };
+    }
+
+    // No filter — group by plant
     const plantNames = plants.map((p) => p.name);
-    return ["ALTA", "MEDIA", "BAJA"].map((crit) => {
+    const data = ["ALTA", "MEDIA", "BAJA"].map((crit) => {
       const row: any = { criticidad: crit };
       for (const p of plantNames) {
         row[p] = equipment.filter(
-          (e) => e.criticality === crit && (e.sectors as any)?.plants?.name === p
+          (e) => e.criticality === crit && e.sectors?.plants?.name === p
         ).length;
       }
       return row;
     });
-  }, [equipment, plants]);
+    return { criticalityData: data, criticalityKeys: plantNames, criticalityColors: PLANT_COLORS };
+  }, [equipment, filteredEquipment, plantFilter, sectorFilter, plants, sectors]);
 
-  // Executions per week (last 8 weeks)
+  // Execution trend (last 8 weeks)
   const executionTrend = useMemo(() => {
     const weeks: Record<string, number> = {};
     for (const ex of recentExecutions) {
@@ -73,23 +129,19 @@ export default function DashboardClient({ appUser, equipment, upcoming, overdue,
       const key = monday.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" });
       weeks[key] = (weeks[key] ?? 0) + 1;
     }
-    return Object.entries(weeks)
-      .slice(-8)
-      .map(([semana, cantidad]) => ({ semana, cantidad }));
+    return Object.entries(weeks).slice(-8).map(([semana, cantidad]) => ({ semana, cantidad }));
   }, [recentExecutions]);
 
   const total = filteredEquipment.length;
   const operativos = filteredEquipment.filter((e) => e.status === "OPERATIVO").length;
   const pctOperativo = total > 0 ? Math.round((operativos / total) * 100) : 0;
 
-  const PLANT_COLORS: Record<string, string> = {
-    POLYSAN:  "#F59E0B",
-    POLCECAL: "#22C55E",
-    AMBOS:    "#3B82F6",
-  };
+  const filterLabel = sectorFilter !== "TODOS"
+    ? sectorFilter
+    : plantFilter !== "TODAS" ? plantFilter : null;
 
   return (
-    <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-6">
+    <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-5">
 
       {/* Header */}
       <div className="flex items-start justify-between flex-wrap gap-3">
@@ -106,25 +158,42 @@ export default function DashboardClient({ appUser, equipment, upcoming, overdue,
           </p>
         </div>
 
-        {/* Plant filter pill */}
-        <div className="flex items-center gap-1.5 bg-gray-100 rounded-xl p-1">
-          {["TODAS", ...plants.map((p) => p.name)].map((p) => (
-            <button
-              key={p}
-              onClick={() => setPlantFilter(p)}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
-              style={{
-                background: plantFilter === p ? (p === "TODAS" ? "#0F172A" : PLANT_COLORS[p] ?? "#0F172A") : "transparent",
-                color: plantFilter === p ? "#fff" : "#64748B",
-              }}
+        {/* Filters */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Plant pills */}
+          <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
+            {["TODAS", ...plants.map((p) => p.name)].map((p) => (
+              <button
+                key={p}
+                onClick={() => handlePlantChange(p)}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+                style={{
+                  background: plantFilter === p ? (PLANT_COLORS[p] ?? "#0F172A") : "transparent",
+                  color: plantFilter === p ? "#fff" : "#64748B",
+                }}
+              >
+                {p}
+              </button>
+            ))}
+          </div>
+
+          {/* Sector select — only visible when a plant is selected */}
+          {plantFilter !== "TODAS" && availableSectors.length > 0 && (
+            <select
+              value={sectorFilter}
+              onChange={(e) => setSectorFilter(e.target.value)}
+              className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-amber-300"
             >
-              {p}
-            </button>
-          ))}
+              <option value="TODOS">Todos los sectores</option>
+              {availableSectors.map((s: any) => (
+                <option key={s.name} value={s.name}>{s.name}</option>
+              ))}
+            </select>
+          )}
         </div>
       </div>
 
-      {/* KPI row */}
+      {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <KpiCard label="Total equipos" value={total} accent="#0F172A" />
         <KpiCard label="Operativos" value={operativos} accent="#22C55E" sub={`${pctOperativo}% del total`} />
@@ -132,35 +201,29 @@ export default function DashboardClient({ appUser, equipment, upcoming, overdue,
         <KpiCard label="Próximos 7 días" value={upcoming.length} accent="#F59E0B" />
       </div>
 
-      {/* Charts row */}
+      {/* Charts */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
         {/* Status donut */}
         <div className="bg-white rounded-2xl border border-gray-200 p-5">
-          <h2 className="text-sm font-semibold text-gray-700 mb-4" style={{ fontFamily: "'Syne', sans-serif" }}>
-            Estado de equipos
-            {plantFilter !== "TODAS" && (
-              <span className="ml-2 text-xs font-normal text-gray-400">— {plantFilter}</span>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-semibold text-gray-700" style={{ fontFamily: "'Syne', sans-serif" }}>
+              Estado de equipos
+            </h2>
+            {filterLabel && (
+              <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{filterLabel}</span>
             )}
-          </h2>
+          </div>
           {statusData.length === 0 ? (
             <div className="h-48 flex items-center justify-center text-sm text-gray-400">Sin datos</div>
           ) : (
             <div className="flex items-center gap-4">
-              <div className="w-40 h-40 shrink-0">
+              <div className="w-44 h-44 shrink-0">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
-                    <Pie
-                      data={statusData}
-                      cx="50%" cy="50%"
-                      innerRadius={42} outerRadius={68}
-                      paddingAngle={2}
-                      dataKey="value"
-                      strokeWidth={0}
-                    >
-                      {statusData.map((d) => (
-                        <Cell key={d.key} fill={d.color} />
-                      ))}
+                    <Pie data={statusData} cx="50%" cy="50%" innerRadius={44} outerRadius={70}
+                      paddingAngle={2} dataKey="value" strokeWidth={0}>
+                      {statusData.map((d) => <Cell key={d.key} fill={d.color} />)}
                     </Pie>
                     <Tooltip
                       formatter={(val: any, name: any) => [`${val} equipos`, name]}
@@ -184,13 +247,19 @@ export default function DashboardClient({ appUser, equipment, upcoming, overdue,
           )}
         </div>
 
-        {/* Criticality by plant bar */}
+        {/* Criticality bar */}
         <div className="bg-white rounded-2xl border border-gray-200 p-5">
-          <h2 className="text-sm font-semibold text-gray-700 mb-4" style={{ fontFamily: "'Syne', sans-serif" }}>
-            Criticidad por planta
-          </h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-semibold text-gray-700" style={{ fontFamily: "'Syne', sans-serif" }}>
+              {sectorFilter !== "TODOS"
+                ? `Criticidad — ${sectorFilter}`
+                : plantFilter !== "TODAS"
+                  ? `Criticidad por sector — ${plantFilter}`
+                  : "Criticidad por planta"}
+            </h2>
+          </div>
           <ResponsiveContainer width="100%" height={176}>
-            <BarChart data={criticalityData} barSize={20} barCategoryGap="35%">
+            <BarChart data={criticalityData} barSize={18} barCategoryGap="35%">
               <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
               <XAxis dataKey="criticidad" tick={{ fontSize: 11, fill: "#94A3B8" }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 11, fill: "#94A3B8" }} axisLine={false} tickLine={false} allowDecimals={false} />
@@ -198,9 +267,11 @@ export default function DashboardClient({ appUser, equipment, upcoming, overdue,
                 contentStyle={{ borderRadius: 8, fontSize: 12, border: "1px solid #E2E8F0" }}
                 cursor={{ fill: "#F8FAFC" }}
               />
-              <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
-              {plants.map((p) => (
-                <Bar key={p.name} dataKey={p.name} fill={PLANT_COLORS[p.name] ?? "#94A3B8"} radius={[4,4,0,0]} />
+              {criticalityKeys.length > 1 && (
+                <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
+              )}
+              {criticalityKeys.map((key) => (
+                <Bar key={key} dataKey={key} fill={criticalityColors[key] ?? "#94A3B8"} radius={[4,4,0,0]} />
               ))}
             </BarChart>
           </ResponsiveContainer>
@@ -213,7 +284,7 @@ export default function DashboardClient({ appUser, equipment, upcoming, overdue,
           <h2 className="text-sm font-semibold text-gray-700 mb-4" style={{ fontFamily: "'Syne', sans-serif" }}>
             Ejecuciones por semana (últimas 8 semanas)
           </h2>
-          <ResponsiveContainer width="100%" height={160}>
+          <ResponsiveContainer width="100%" height={150}>
             <BarChart data={executionTrend} barSize={28}>
               <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
               <XAxis dataKey="semana" tick={{ fontSize: 11, fill: "#94A3B8" }} axisLine={false} tickLine={false} />
