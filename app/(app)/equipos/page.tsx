@@ -8,7 +8,7 @@ export default async function EquiposPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const [{ data: plants }, { data: sectors }, { data: equipment }] = await Promise.all([
+  const [{ data: plants }, { data: sectors }, { data: equipment }, { data: appUser }] = await Promise.all([
     supabase.from("plants").select("*").order("name"),
     supabase.from("sectors").select("*, plants(name)").order("name"),
     supabase
@@ -16,13 +16,17 @@ export default async function EquiposPage() {
       .select("*, sectors(name, plants(name))")
       .eq("is_active", true)
       .order("code"),
+    supabase.from("app_users").select("role").eq("id", user.id).single(),
   ]);
+
+  const canEdit = ["admin_sistema", "administrador"].includes(appUser?.role ?? "");
 
   return (
     <EquiposClient
       plants={plants ?? []}
       sectors={sectors ?? []}
       equipment={equipment ?? []}
+      canEdit={canEdit}
     />
   );
 }

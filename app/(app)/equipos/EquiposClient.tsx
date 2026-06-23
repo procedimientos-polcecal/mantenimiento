@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
+import * as XLSX from "xlsx";
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   OPERATIVO:          { label: "Operativo",        color: "bg-green-100 text-green-800" },
@@ -18,22 +19,24 @@ const CRITICALITY_LABELS: Record<string, string> = {
   BAJA:  "text-gray-400",
 };
 
-export default function EquiposClient({ plants, sectors, equipment }: {
+export default function EquiposClient({ plants, sectors, equipment, canEdit }: {
   plants: any[];
   sectors: any[];
   equipment: any[];
+  canEdit?: boolean;
 }) {
   const [search, setSearch] = useState("");
   const [filterPlant, setFilterPlant] = useState("");
   const [filterSector, setFilterSector] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<{ updated: number; created: number; errors: string[] } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const router = useRouter();
 
   const filteredSectors = useMemo(() =>
-    filterPlant
-      ? sectors.filter((s: any) => s.plants?.name === filterPlant)
-      : sectors,
+    filterPlant ? sectors.filter((s: any) => s.plants?.name === filterPlant) : sectors,
     [sectors, filterPlant]
   );
 
@@ -48,12 +51,142 @@ export default function EquiposClient({ plants, sectors, equipment }: {
     });
   }, [equipment, filterPlant, filterSector, filterStatus, search]);
 
+  // ─── Export ───────────────────────────────────────────────────────────────
+  function exportExcel() {
+    const rows = filtered.map((e: any) => ({
+      "Código":       e.code,
+      "Nombre":       e.name,
+      "Planta":       e.sectors?.plants?.name ?? "",
+      "Sector":       e.sectors?.name ?? "",
+      "kW":           e.power_kw ?? "",
+      "Estado":       e.status,
+      "Criticidad":   e.criticality,
+      "Descripción":  e.description ?? "",
+      "Notas":        e.notes ?? "",
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+
+    // Column widths
+    ws["!cols"] = [
+      { wch: 14 }, { wch: 30 }, { wch: 12 }, { wch: 20 },
+      { wch: 8 },  { wch: 20 }, { wch: 12 }, { wch: 35 }, { wch: 35 },
+    ];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Equipos");
+
+    // Add a legend sheet with valid values
+    const legend = XLSX.utils.aoa_to_sheet([
+      ["Estado (valores válidos)","","Criticidad (valores válidos)"],
+      ["OPERATIVO","","ALTA"],
+      ["EN_MANTENIMIENTO","","MEDIA"],
+      ["EN_REPARACION","","BAJA"],
+      ["STANDBY","",""],
+      ["FUERA_DE_SERVICIO","",""],
+      ["DADO_DE_BAJA","",""],
+    ]);
+    XLSX.utils.book_append_sheet(wb, legend, "Referencia");
+
+    const date = new Date().toISOString().slice(0, 10);
+    XLSX.writeFile(wb, `equipos_${date}.xlsx`);
+  }
+
+  // ─── Import ───────────────────────────────────────────────────────────────
+  async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+
+    setImporting(true);
+    setImportResult(null);
+
+    const fd = new FormData();
+    fd.append("file", file);
+
+    try {
+      const res = await fetch("/api/equipos/import", { method: "POST", body: fd });
+      const data = await res.json();
+      if (!res.ok) {
+        setImportResult({ updated: 0, created: 0, errors: [data.error ?? "Error al importar"] });
+      } else {
+        setImportResult(data);
+        if (data.created > 0 || data.updated > 0) router.refresh();
+      }
+    } catch {
+      setImportResult({ updated: 0, created: 0, errors: ["Error de red al importar"] });
+    } finally {
+      setImporting(false);
+    }
+  }
+
   return (
     <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
         <h1 className="text-xl font-bold text-gray-900">Equipos</h1>
-        <span className="text-sm text-gray-500">{filtered.length} de {equipment.length}</span>
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-sm text-gray-500 mr-1">{filtered.length} de {equipment.length}</span>
+
+          {/* Export */}
+          <button
+            onClick={exportExcel}
+            className="flex items-center gap-1.5 rounded-lg border border-green-600 px-3 py-1.5 text-sm font-medium text-green-700 hover:bg-green-50 transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            Exportar Excel
+          </button>
+
+          {/* Import — only for admins */}
+          {canEdit && (
+            <>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={importing}
+                className="flex items-center gap-1.5 rounded-lg border border-blue-600 px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-50 transition-colors disabled:opacity-50"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l4-4m0 0l4 4m-4-4v12" />
+                </svg>
+                {importing ? "Importando..." : "Importar Excel"}
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".xlsx,.xls"
+                className="hidden"
+                onChange={handleImport}
+              />
+            </>
+          )}
+        </div>
       </div>
+
+      {/* Import result banner */}
+      {importResult && (
+        <div className={`rounded-xl border px-4 py-3 text-sm space-y-1 ${
+          importResult.errors.length > 0
+            ? "border-red-200 bg-red-50"
+            : "border-green-200 bg-green-50"
+        }`}>
+          <div className="flex items-center justify-between">
+            <span className="font-medium">
+              {importResult.created > 0 && `${importResult.created} equipo(s) creados. `}
+              {importResult.updated > 0 && `${importResult.updated} equipo(s) actualizados. `}
+              {importResult.errors.length > 0 && `${importResult.errors.length} error(es).`}
+            </span>
+            <button onClick={() => setImportResult(null)} className="text-gray-400 hover:text-gray-700 text-lg leading-none">×</button>
+          </div>
+          {importResult.errors.length > 0 && (
+            <ul className="list-disc list-inside text-red-700 space-y-0.5">
+              {importResult.errors.map((e, i) => <li key={i}>{e}</li>)}
+            </ul>
+          )}
+        </div>
+      )}
 
       {/* Filters */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
