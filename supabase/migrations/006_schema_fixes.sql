@@ -36,6 +36,7 @@ ALTER TABLE maintenance_executions
 
 -- 6. Add missing columns to maintenance_executions
 ALTER TABLE maintenance_executions
+  ADD COLUMN IF NOT EXISTS executed_by      UUID REFERENCES app_users(id),
   ADD COLUMN IF NOT EXISTS execution_status TEXT,
   ADD COLUMN IF NOT EXISTS executed_at      TIMESTAMPTZ DEFAULT now(),
   ADD COLUMN IF NOT EXISTS duration_hours   NUMERIC(5,2),

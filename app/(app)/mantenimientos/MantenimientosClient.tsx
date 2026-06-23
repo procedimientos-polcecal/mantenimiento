@@ -58,6 +58,42 @@ export default function MantenimientosClient({ schedules, equipment, users, canE
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
+  const [refPhotos, setRefPhotos] = useState<File[]>([]);
+  const [refPreviews, setRefPreviews] = useState<string[]>([]);
+
+  function handleRefPhotos(files: FileList | null) {
+    if (!files) return;
+    const arr = Array.from(files).slice(0, 3);
+    setRefPhotos((p) => [...p, ...arr].slice(0, 3));
+    arr.forEach((f) => {
+      const reader = new FileReader();
+      reader.onload = (e) => setRefPreviews((p) => [...p, e.target?.result as string]);
+      reader.readAsDataURL(f);
+    });
+  }
+
+  function removeRefPhoto(idx: number) {
+    setRefPhotos((p) => p.filter((_, i) => i !== idx));
+    setRefPreviews((p) => p.filter((_, i) => i !== idx));
+  }
+
+  async function uploadRefPhotos(scheduleId: string): Promise<string[]> {
+    if (refPhotos.length === 0) return [];
+    const supabase = createClient();
+    const urls: string[] = [];
+    for (const photo of refPhotos) {
+      const ext = photo.name.split(".").pop() ?? "jpg";
+      const path = `schedules/${scheduleId}/${Date.now()}.${ext}`;
+      const { error } = await supabase.storage
+        .from("execution-photos")
+        .upload(path, photo, { upsert: false });
+      if (!error) {
+        const { data } = supabase.storage.from("execution-photos").getPublicUrl(path);
+        urls.push(data.publicUrl);
+      }
+    }
+    return urls;
+  }
 
   function field(key: string, value: string) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -66,6 +102,8 @@ export default function MantenimientosClient({ schedules, equipment, users, canE
   function openNew() {
     setForm({ ...EMPTY_FORM });
     setEditing(null);
+    setRefPhotos([]);
+    setRefPreviews([]);
     setShowForm(true);
     setError("");
   }
@@ -82,6 +120,8 @@ export default function MantenimientosClient({ schedules, equipment, users, canE
       estimated_hours: s.estimated_hours ?? "",
     });
     setEditing(s);
+    setRefPhotos([]);
+    setRefPreviews([]);
     setShowForm(true);
     setError("");
   }
@@ -111,15 +151,31 @@ export default function MantenimientosClient({ schedules, equipment, users, canE
 
     let err;
     if (editing) {
+      if (refPhotos.length > 0) {
+        const urls = await uploadRefPhotos(editing.id);
+        if (urls.length > 0) payload.reference_photos = urls;
+      }
       ({ error: err } = await supabase
         .from("maintenance_schedules")
         .update(payload)
         .eq("id", editing.id));
     } else {
       payload.status = "active";
-      ({ error: err } = await supabase
+      const { data: inserted, error: insErr } = await supabase
         .from("maintenance_schedules")
-        .insert(payload));
+        .insert(payload)
+        .select("id")
+        .single();
+      if (!insErr && inserted && refPhotos.length > 0) {
+        const urls = await uploadRefPhotos(inserted.id);
+        if (urls.length > 0) {
+          await supabase
+            .from("maintenance_schedules")
+            .update({ reference_photos: urls })
+            .eq("id", inserted.id);
+        }
+      }
+      err = insErr;
     }
 
     if (err) { setError(err.message); setSaving(false); return; }
@@ -318,6 +374,32 @@ export default function MantenimientosClient({ schedules, equipment, users, canE
               <Field label="Descripción / tarea">
                 <textarea value={form.description} onChange={(e) => field("description", e.target.value)}
                   rows={3} className="input resize-none" placeholder="Detalle de la tarea a realizar..." />
+              </Field>
+
+              <Field label="Fotos de referencia (hasta 3)">
+                <label className="flex items-center gap-2 cursor-pointer rounded-lg border border-dashed border-gray-300 px-4 py-3 hover:border-blue-400 transition-colors">
+                  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  <span className="text-xs text-gray-500">
+                    {refPhotos.length === 0 ? "Adjuntar foto..." : `${refPhotos.length} foto(s) seleccionada(s)`}
+                  </span>
+                  <input type="file" accept="image/*" multiple className="hidden"
+                    onChange={(e) => handleRefPhotos(e.target.files)} />
+                </label>
+                {refPreviews.length > 0 && (
+                  <div className="flex gap-2 mt-2 flex-wrap">
+                    {refPreviews.map((src, i) => (
+                      <div key={i} className="relative">
+                        <img src={src} alt="" className="w-16 h-16 rounded-lg object-cover border border-gray-200" />
+                        <button type="button" onClick={() => removeRefPhoto(i)}
+                          className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-xs flex items-center justify-center leading-none">
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </Field>
             </div>
 
