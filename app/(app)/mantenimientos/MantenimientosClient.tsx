@@ -30,6 +30,7 @@ const STATUS_COLORS: Record<string, string> = {
   active:    "bg-green-100 text-green-800",
   paused:    "bg-yellow-100 text-yellow-800",
   completed: "bg-gray-100 text-gray-600",
+  cancelled: "bg-red-100 text-red-700",
 };
 
 const EMPTY_FORM = {
@@ -156,6 +157,7 @@ export default function MantenimientosClient({ schedules, equipment, users, canE
             <option value="">Todos</option>
             <option value="active">Activos</option>
             <option value="paused">Pausados</option>
+            <option value="cancelled">Cancelados</option>
             <option value="completed">Completados</option>
           </select>
           {canEdit && (
