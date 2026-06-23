@@ -3,10 +3,12 @@ import OfflineBar from "@/app/components/OfflineBar";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="app-shell">
       <Nav />
-      <OfflineBar />
-      <main className="flex-1">{children}</main>
+      <div className="main-content">
+        <OfflineBar />
+        {children}
+      </div>
     </div>
   );
 }

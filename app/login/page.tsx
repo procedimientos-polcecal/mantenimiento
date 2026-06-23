@@ -1,92 +1,142 @@
 "use client";
 
 import { useState } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
-  const supabase = createClient();
+  const [error, setError] = useState("");
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    setError(null);
-
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-
-    if (error) {
-      setError("Email o contraseña incorrectos");
+    setError("");
+    const supabase = createClient();
+    const { error: err } = await supabase.auth.signInWithPassword({ email, password });
+    if (err) {
+      setError("Email o contraseña incorrectos.");
       setLoading(false);
       return;
     }
-
     router.push("/dashboard");
-    router.refresh();
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-      <div className="w-full max-w-sm">
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
-          <div className="mb-8 text-center">
-            <h1 className="text-2xl font-bold text-gray-900">POLCECAL / POLYSAN</h1>
-            <p className="mt-1 text-sm text-gray-500">Sistema de Gestión de Mantenimiento</p>
+    <div style={{ minHeight: "100vh", display: "flex", fontFamily: "'DM Sans', sans-serif", background: "#F1F5F9" }}>
+
+      {/* Left panel */}
+      <div style={{
+        width: "45%", background: "#0A0F1C",
+        display: "flex", flexDirection: "column", justifyContent: "space-between",
+        padding: "48px", position: "relative", overflow: "hidden",
+      }} className="login-left">
+        <div style={{
+          position: "absolute", inset: 0,
+          backgroundImage: `radial-gradient(circle at 20% 80%, rgba(245,158,11,.1) 0%, transparent 50%),
+                            radial-gradient(circle at 80% 20%, rgba(34,197,94,.07) 0%, transparent 50%)`,
+          pointerEvents: "none",
+        }} />
+        <div style={{
+          position: "absolute", inset: 0,
+          backgroundImage: `linear-gradient(rgba(255,255,255,.015) 1px, transparent 1px),
+                            linear-gradient(90deg, rgba(255,255,255,.015) 1px, transparent 1px)`,
+          backgroundSize: "40px 40px", pointerEvents: "none",
+        }} />
+
+        <div style={{ position: "relative", zIndex: 1 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <PPLogo size={48} />
+            <div>
+              <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: 18, color: "#F1F5F9" }}>POLCECAL</div>
+              <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: 18, color: "#F59E0B" }}>POLYSAN</div>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ position: "relative", zIndex: 1 }}>
+          <h1 style={{
+            fontFamily: "'Syne', sans-serif", fontWeight: 800,
+            fontSize: "clamp(26px, 3vw, 40px)", color: "#F1F5F9",
+            lineHeight: 1.15, marginBottom: 16,
+          }}>
+            Sistema de<br />
+            <span style={{ color: "#F59E0B" }}>Gestión</span> de<br />
+            Mantenimiento
+          </h1>
+          <p style={{ color: "#475569", fontSize: 15, lineHeight: 1.6, maxWidth: 300 }}>
+            Control integral de equipos industriales para plantas POLCECAL y POLYSAN.
+          </p>
+          <div style={{ display: "flex", gap: 32, marginTop: 40 }}>
+            {[{ v: "239", l: "Equipos" }, { v: "2", l: "Plantas" }, { v: "16", l: "Sectores" }].map((s) => (
+              <div key={s.l}>
+                <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 30, color: "#F59E0B" }}>{s.v}</div>
+                <div style={{ fontSize: 11, color: "#475569", textTransform: "uppercase", letterSpacing: ".08em" }}>{s.l}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ fontSize: 11, color: "#1E2A3A", position: "relative", zIndex: 1 }}>
+          © {new Date().getFullYear()} POLCECAL / POLYSAN S.A.
+        </div>
+      </div>
+
+      {/* Right panel */}
+      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "48px 24px" }}>
+        <div style={{ width: "100%", maxWidth: 380 }}>
+          <div style={{ marginBottom: 40 }}>
+            <h2 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 26, color: "#0F172A", marginBottom: 8 }}>
+              Bienvenido
+            </h2>
+            <p style={{ color: "#64748B", fontSize: 14 }}>Ingresá con tu cuenta para continuar.</p>
           </div>
 
-          <form onSubmit={handleLogin} className="space-y-4">
+          <form onSubmit={handleLogin} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+              <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#64748B", marginBottom: 6, letterSpacing: ".08em", textTransform: "uppercase" }}>
                 Email
               </label>
-              <input
-                id="email"
-                type="email"
-                required
-                autoComplete="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                placeholder="usuario@polcecal.com"
-              />
+              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+                required placeholder="usuario@empresa.com" className="input" />
             </div>
-
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+              <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#64748B", marginBottom: 6, letterSpacing: ".08em", textTransform: "uppercase" }}>
                 Contraseña
               </label>
-              <input
-                id="password"
-                type="password"
-                required
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                placeholder="••••••••"
-              />
+              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)}
+                required placeholder="••••••••" className="input" />
             </div>
 
             {error && (
-              <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2.5 text-sm text-red-700">
+              <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 8, padding: "10px 14px", fontSize: 13, color: "#DC2626" }}>
                 {error}
               </div>
             )}
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
-            >
-              {loading ? "Ingresando..." : "Ingresar"}
+            <button type="submit" disabled={loading} className="btn-primary"
+              style={{ width: "100%", justifyContent: "center", padding: "13px", marginTop: 8, fontSize: 15 }}>
+              {loading ? "Ingresando..." : "Ingresar →"}
             </button>
           </form>
         </div>
       </div>
+
+      <style>{`
+        @media (max-width: 768px) { .login-left { display: none !important; } }
+      `}</style>
     </div>
+  );
+}
+
+function PPLogo({ size = 48 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" fill="none">
+      <path d="M8 20 L8 80 L18 80 L18 56 C18 56 42 60 42 38 C42 16 18 20 8 20Z M18 30 C18 30 32 28 32 38 C32 48 18 46 18 46Z" fill="#F59E0B"/>
+      <path d="M52 20 L52 80 L62 80 L62 56 C62 56 86 60 86 38 C86 16 62 20 52 20Z M62 30 C62 30 76 28 76 38 C76 48 62 46 62 46Z" fill="#22C55E"/>
+    </svg>
   );
 }

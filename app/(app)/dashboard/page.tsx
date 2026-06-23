@@ -53,91 +53,121 @@ export default async function DashboardPage() {
     .order("next_date", { ascending: true })
     .limit(10);
 
+  const ROLE_LABEL: Record<string, string> = {
+    admin_sistema: "Admin sistema", administrador: "Administrador",
+    tecnico: "Técnico", operador: "Operador",
+  };
+
   return (
-    <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-sm text-gray-500">
-          Bienvenido, {appUser?.full_name ?? user.email} · {appUser?.role}
+    <div style={{ padding: "28px 32px", maxWidth: 900, margin: "0 auto" }}>
+      {/* Header */}
+      <div className="fade-up" style={{ marginBottom: 28 }}>
+        <h1 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 22, color: "#0F172A", margin: 0 }}>
+          Dashboard
+        </h1>
+        <p style={{ fontSize: 13, color: "#94A3B8", marginTop: 4 }}>
+          {appUser?.full_name ?? user.email}
+          <span style={{ margin: "0 8px", color: "#E2E8F0" }}>·</span>
+          <span style={{ background: "#FEF3C7", color: "#B45309", padding: "2px 8px", borderRadius: 4, fontSize: 11, fontWeight: 600, fontFamily: "'Syne', sans-serif", letterSpacing: ".04em" }}>
+            {ROLE_LABEL[appUser?.role] ?? appUser?.role}
+          </span>
         </p>
       </div>
 
-      {/* Status counters */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-        <StatusCard label="Operativo" count={counts.OPERATIVO} color="green" />
-        <StatusCard label="En mantenimiento" count={counts.EN_MANTENIMIENTO} color="blue" />
-        <StatusCard label="En reparación" count={counts.EN_REPARACION} color="red" />
-        <StatusCard label="Standby" count={counts.STANDBY} color="yellow" />
-        <StatusCard label="Fuera de servicio" count={counts.FUERA_DE_SERVICIO} color="gray" />
-        <StatusCard label="Dado de baja" count={counts.DADO_DE_BAJA} color="slate" />
+      {/* Status grid */}
+      <div className="fade-up fade-up-1" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 28 }}>
+        <StatusCard label="Operativo"         count={counts.OPERATIVO}         accent="#22C55E" dot="#16A34A" />
+        <StatusCard label="En mantenimiento"  count={counts.EN_MANTENIMIENTO}  accent="#3B82F6" dot="#2563EB" />
+        <StatusCard label="En reparación"     count={counts.EN_REPARACION}     accent="#EF4444" dot="#DC2626" />
+        <StatusCard label="Standby"           count={counts.STANDBY}           accent="#F59E0B" dot="#D97706" />
+        <StatusCard label="Fuera de servicio" count={counts.FUERA_DE_SERVICIO} accent="#94A3B8" dot="#64748B" />
+        <StatusCard label="Dado de baja"      count={counts.DADO_DE_BAJA}      accent="#64748B" dot="#475569" />
       </div>
 
       {/* Overdue */}
       {overdue && overdue.length > 0 && (
-        <section>
-          <h2 className="text-sm font-semibold text-red-700 mb-2 flex items-center gap-1">
-            <span className="inline-block w-2 h-2 rounded-full bg-red-500" />
-            Vencidos ({overdue.length})
-          </h2>
-          <div className="space-y-2">
-            {overdue.map((s: any) => (
-              <ScheduleRow key={s.id} schedule={s} overdue />
+        <section className="fade-up fade-up-2" style={{ marginBottom: 24 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+            <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#EF4444", display: "inline-block", animation: "pulse-dot 2s infinite" }} />
+            <h2 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 600, fontSize: 13, color: "#DC2626", margin: 0, letterSpacing: ".04em", textTransform: "uppercase" }}>
+              Vencidos — {overdue.length}
+            </h2>
+          </div>
+          <div style={{ borderRadius: 12, border: "1px solid #FECACA", overflow: "hidden", background: "#fff" }}>
+            {overdue.map((s: any, i: number) => (
+              <ScheduleRow key={s.id} schedule={s} overdue last={i === overdue.length - 1} />
             ))}
           </div>
         </section>
       )}
 
       {/* Upcoming */}
-      <section>
-        <h2 className="text-sm font-semibold text-gray-700 mb-2">
-          Próximos 7 días ({upcoming?.length ?? 0})
-        </h2>
+      <section className="fade-up fade-up-3">
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+          <h2 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 600, fontSize: 13, color: "#64748B", margin: 0, letterSpacing: ".04em", textTransform: "uppercase" }}>
+            Próximos 7 días — {upcoming?.length ?? 0}
+          </h2>
+        </div>
         {upcoming && upcoming.length > 0 ? (
-          <div className="space-y-2">
-            {upcoming.map((s: any) => (
-              <ScheduleRow key={s.id} schedule={s} />
+          <div style={{ borderRadius: 12, border: "1px solid #E2E8F0", overflow: "hidden", background: "#fff" }}>
+            {upcoming.map((s: any, i: number) => (
+              <ScheduleRow key={s.id} schedule={s} last={i === (upcoming.length - 1)} />
             ))}
           </div>
         ) : (
-          <p className="text-sm text-gray-400">Sin mantenimientos programados esta semana.</p>
+          <div style={{ borderRadius: 12, border: "1px dashed #E2E8F0", padding: "32px", textAlign: "center" }}>
+            <p style={{ fontSize: 13, color: "#94A3B8", margin: 0 }}>Sin mantenimientos programados esta semana.</p>
+          </div>
         )}
       </section>
     </div>
   );
 }
 
-function StatusCard({ label, count, color }: { label: string; count: number; color: string }) {
-  const colors: Record<string, string> = {
-    green: "bg-green-50 border-green-200 text-green-800",
-    blue: "bg-blue-50 border-blue-200 text-blue-800",
-    red: "bg-red-50 border-red-200 text-red-800",
-    yellow: "bg-yellow-50 border-yellow-200 text-yellow-800",
-    gray: "bg-gray-50 border-gray-200 text-gray-700",
-    slate: "bg-slate-50 border-slate-200 text-slate-600",
-  };
-
+function StatusCard({ label, count, accent, dot }: { label: string; count: number; accent: string; dot: string }) {
   return (
-    <div className={`rounded-xl border p-4 ${colors[color]}`}>
-      <div className="text-2xl font-bold">{count}</div>
-      <div className="text-xs font-medium mt-0.5">{label}</div>
+    <div style={{
+      background: "#fff", borderRadius: 12, padding: "18px 20px",
+      border: "1px solid #E2E8F0", boxShadow: "0 1px 2px rgba(0,0,0,.05)",
+      position: "relative", overflow: "hidden",
+    }}>
+      <div style={{
+        position: "absolute", top: 0, left: 0, right: 0, height: 3,
+        background: accent, borderRadius: "12px 12px 0 0",
+      }} />
+      <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 32, color: "#0F172A", lineHeight: 1 }}>
+        {count}
+      </div>
+      <div style={{ fontSize: 12, color: "#94A3B8", marginTop: 6, fontWeight: 500 }}>{label}</div>
+      <div style={{ position: "absolute", bottom: 12, right: 16, width: 8, height: 8, borderRadius: "50%", background: dot, opacity: .4 }} />
     </div>
   );
 }
 
-function ScheduleRow({ schedule, overdue }: { schedule: any; overdue?: boolean }) {
+function ScheduleRow({ schedule, overdue, last }: { schedule: any; overdue?: boolean; last?: boolean }) {
   return (
-    <div className={`rounded-lg border px-4 py-3 flex items-center justify-between gap-2 ${overdue ? "border-red-200 bg-red-50" : "border-gray-200 bg-white"}`}>
-      <div>
-        <span className="text-sm font-medium text-gray-900">
-          {schedule.equipment?.code} — {schedule.equipment?.name}
-        </span>
-        <span className="ml-2 text-xs text-gray-500">{schedule.maintenance_type}</span>
-      </div>
-      <div className="text-right shrink-0">
-        <div className={`text-xs font-semibold ${overdue ? "text-red-700" : "text-gray-700"}`}>
-          {schedule.next_date}
+    <div style={{
+      display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16,
+      padding: "12px 16px",
+      borderBottom: last ? "none" : `1px solid ${overdue ? "#FECACA" : "#F1F5F9"}`,
+      background: overdue ? "#FFF5F5" : "#fff",
+    }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "#94A3B8", background: "#F8FAFC", padding: "1px 6px", borderRadius: 4, border: "1px solid #E2E8F0" }}>
+            {schedule.equipment?.code}
+          </span>
+          <span style={{ fontSize: 13, fontWeight: 500, color: "#0F172A" }}>{schedule.equipment?.name}</span>
+          <span style={{ fontSize: 11, color: "#94A3B8" }}>{schedule.maintenance_type}</span>
         </div>
-        <div className="text-xs text-gray-400">{schedule.assigned_user?.full_name}</div>
+        {schedule.assigned_user?.full_name && (
+          <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 2 }}>{schedule.assigned_user.full_name}</div>
+        )}
+      </div>
+      <div style={{ textAlign: "right", flexShrink: 0 }}>
+        <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 600, fontSize: 13, color: overdue ? "#DC2626" : "#0F172A" }}>
+          {schedule.next_date ? new Date(schedule.next_date + "T00:00:00").toLocaleDateString("es-AR") : "—"}
+        </div>
       </div>
     </div>
   );
