@@ -127,12 +127,6 @@ export default function LoginPage() {
 }
 
 function PPLogo({ size = 200 }: { size?: number }) {
-  return (
-    <svg width={size} height={Math.round(size * 430 / 470)} viewBox="0 0 470 430" xmlns="http://www.w3.org/2000/svg">
-      <path d="M30 415 L30 195 A97.5 97.5 0 0 1 225 195 L225 415 L175 415 L175 195 A47.5 47.5 0 0 0 80 195 L80 415 Z" fill="#F5A623"/>
-      <path d="M440 415 L440 195 A97.5 97.5 0 0 0 245 195 L245 415 L295 415 L295 195 A47.5 47.5 0 0 1 390 195 L390 415 Z" fill="#2D8C3E"/>
-      <text x="127" y="270" textAnchor="middle" fontFamily="Georgia, serif" fontSize="22" fontWeight="bold" fill="#F5A623" letterSpacing="1">POLYSAN S.A.</text>
-      <text x="342" y="270" textAnchor="middle" fontFamily="Georgia, serif" fontSize="22" fontWeight="bold" fill="#2D8C3E" letterSpacing="1">POLCECAL S.A.</text>
-    </svg>
-  );
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src="/logo.png" alt="POLYSAN / POLCECAL" width={size} style={{ objectFit: "contain" }} />;
 }

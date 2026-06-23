@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
@@ -30,7 +31,7 @@ export default function Nav() {
     <>
       {/* Mobile topbar */}
       <div className="mobile-topbar">
-        <PPLogo size={80} markOnly />
+        <PPLogo width={56} />
         <button onClick={() => setOpen(true)} style={{ color: "#94A3B8", background: "none", border: "none", cursor: "pointer", padding: 4 }}>
           <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
             <path d="M4 6h16M4 12h16M4 18h16" strokeLinecap="round"/>
@@ -50,7 +51,7 @@ export default function Nav() {
       <aside className={`sidebar${open ? " open" : ""}`}>
         {/* Brand */}
         <div style={{ padding: "20px 16px 16px", borderBottom: "1px solid #1E2A3A" }}>
-          <PPLogo size={160} />
+          <PPLogo width={160} />
           <div style={{ marginTop: 6, fontSize: 10, color: "#475569", fontFamily: "'DM Sans', sans-serif", letterSpacing: ".06em", textTransform: "uppercase", textAlign: "center" }}>
             Gestión de Mantenimiento
           </div>
@@ -117,25 +118,10 @@ export default function Nav() {
   );
 }
 
-/* ─── PP Logo — full (with text) or mark only ─── */
-function PPLogo({ size = 160, markOnly = false }: { size?: number; markOnly?: boolean }) {
-  if (markOnly) {
-    // Just the arch portion, no text — for tight spaces
-    const ratio = size / 470;
-    return (
-      <svg width={size} height={Math.round(205 * ratio)} viewBox="0 0 470 205" xmlns="http://www.w3.org/2000/svg">
-        <path d="M30 205 L30 0 A97.5 97.5 0 0 1 225 0 L225 205 L175 205 L175 0 A47.5 47.5 0 0 0 80 0 L80 205 Z" fill="#F5A623"/>
-        <path d="M440 205 L440 0 A97.5 97.5 0 0 0 245 0 L245 205 L295 205 L295 0 A47.5 47.5 0 0 1 390 0 L390 205 Z" fill="#2D8C3E"/>
-      </svg>
-    );
-  }
+/* ─── Logo ─── */
+function PPLogo({ width = 160 }: { width?: number }) {
   return (
-    <svg width={size} height={Math.round(size * 430 / 470)} viewBox="0 0 470 430" xmlns="http://www.w3.org/2000/svg">
-      <path d="M30 415 L30 195 A97.5 97.5 0 0 1 225 195 L225 415 L175 415 L175 195 A47.5 47.5 0 0 0 80 195 L80 415 Z" fill="#F5A623"/>
-      <path d="M440 415 L440 195 A97.5 97.5 0 0 0 245 195 L245 415 L295 415 L295 195 A47.5 47.5 0 0 1 390 195 L390 415 Z" fill="#2D8C3E"/>
-      <text x="127" y="270" textAnchor="middle" fontFamily="Georgia, serif" fontSize="22" fontWeight="bold" fill="#F5A623" letterSpacing="1">POLYSAN S.A.</text>
-      <text x="342" y="270" textAnchor="middle" fontFamily="Georgia, serif" fontSize="22" fontWeight="bold" fill="#2D8C3E" letterSpacing="1">POLCECAL S.A.</text>
-    </svg>
+    <Image src="/logo.png" alt="POLYSAN / POLCECAL" width={width} height={width} style={{ objectFit: "contain" }} />
   );
 }
 
