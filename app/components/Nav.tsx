@@ -30,7 +30,7 @@ export default function Nav() {
     <>
       {/* Mobile topbar */}
       <div className="mobile-topbar">
-        <PPLogo size={32} />
+        <PPLogo size={80} markOnly />
         <button onClick={() => setOpen(true)} style={{ color: "#94A3B8", background: "none", border: "none", cursor: "pointer", padding: 4 }}>
           <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
             <path d="M4 6h16M4 12h16M4 18h16" strokeLinecap="round"/>
@@ -49,19 +49,9 @@ export default function Nav() {
       {/* Sidebar */}
       <aside className={`sidebar${open ? " open" : ""}`}>
         {/* Brand */}
-        <div style={{ padding: "24px 20px 20px", borderBottom: "1px solid #1E2A3A" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <PPLogo size={36} />
-            <div>
-              <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 13, color: "#F1F5F9", lineHeight: 1.2 }}>
-                POLCECAL
-              </div>
-              <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 13, color: "#F59E0B", lineHeight: 1.2 }}>
-                POLYSAN
-              </div>
-            </div>
-          </div>
-          <div style={{ marginTop: 8, fontSize: 10, color: "#475569", fontFamily: "'DM Sans', sans-serif", letterSpacing: ".06em", textTransform: "uppercase" }}>
+        <div style={{ padding: "20px 16px 16px", borderBottom: "1px solid #1E2A3A" }}>
+          <PPLogo size={160} />
+          <div style={{ marginTop: 6, fontSize: 10, color: "#475569", fontFamily: "'DM Sans', sans-serif", letterSpacing: ".06em", textTransform: "uppercase", textAlign: "center" }}>
             Gestión de Mantenimiento
           </div>
         </div>
@@ -127,14 +117,24 @@ export default function Nav() {
   );
 }
 
-/* ─── PP Logo SVG ─── */
-function PPLogo({ size = 36 }: { size?: number }) {
+/* ─── PP Logo — full (with text) or mark only ─── */
+function PPLogo({ size = 160, markOnly = false }: { size?: number; markOnly?: boolean }) {
+  if (markOnly) {
+    // Just the arch portion, no text — for tight spaces
+    const ratio = size / 470;
+    return (
+      <svg width={size} height={Math.round(205 * ratio)} viewBox="0 0 470 205" xmlns="http://www.w3.org/2000/svg">
+        <path d="M30 205 L30 0 A97.5 97.5 0 0 1 225 0 L225 205 L175 205 L175 0 A47.5 47.5 0 0 0 80 0 L80 205 Z" fill="#F5A623"/>
+        <path d="M440 205 L440 0 A97.5 97.5 0 0 0 245 0 L245 205 L295 205 L295 0 A47.5 47.5 0 0 1 390 0 L390 205 Z" fill="#2D8C3E"/>
+      </svg>
+    );
+  }
   return (
-    <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-      {/* Left P - orange */}
-      <path d="M8 20 L8 80 L18 80 L18 56 C18 56 42 60 42 38 C42 16 18 20 8 20Z M18 30 C18 30 32 28 32 38 C32 48 18 46 18 46Z" fill="#F59E0B"/>
-      {/* Right P - green */}
-      <path d="M52 20 L52 80 L62 80 L62 56 C62 56 86 60 86 38 C86 16 62 20 52 20Z M62 30 C62 30 76 28 76 38 C76 48 62 46 62 46Z" fill="#22C55E"/>
+    <svg width={size} height={Math.round(size * 430 / 470)} viewBox="0 0 470 430" xmlns="http://www.w3.org/2000/svg">
+      <path d="M30 415 L30 195 A97.5 97.5 0 0 1 225 195 L225 415 L175 415 L175 195 A47.5 47.5 0 0 0 80 195 L80 415 Z" fill="#F5A623"/>
+      <path d="M440 415 L440 195 A97.5 97.5 0 0 0 245 195 L245 415 L295 415 L295 195 A47.5 47.5 0 0 1 390 195 L390 415 Z" fill="#2D8C3E"/>
+      <text x="127" y="270" textAnchor="middle" fontFamily="Georgia, serif" fontSize="22" fontWeight="bold" fill="#F5A623" letterSpacing="1">POLYSAN S.A.</text>
+      <text x="342" y="270" textAnchor="middle" fontFamily="Georgia, serif" fontSize="22" fontWeight="bold" fill="#2D8C3E" letterSpacing="1">POLCECAL S.A.</text>
     </svg>
   );
 }

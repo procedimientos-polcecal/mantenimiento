@@ -48,13 +48,7 @@ export default function LoginPage() {
         }} />
 
         <div style={{ position: "relative", zIndex: 1 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            <PPLogo size={48} />
-            <div>
-              <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: 18, color: "#F1F5F9" }}>POLCECAL</div>
-              <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: 18, color: "#F59E0B" }}>POLYSAN</div>
-            </div>
-          </div>
+          <PPLogo size={200} />
         </div>
 
         <div style={{ position: "relative", zIndex: 1 }}>
@@ -132,11 +126,13 @@ export default function LoginPage() {
   );
 }
 
-function PPLogo({ size = 48 }: { size?: number }) {
+function PPLogo({ size = 200 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 100 100" fill="none">
-      <path d="M8 20 L8 80 L18 80 L18 56 C18 56 42 60 42 38 C42 16 18 20 8 20Z M18 30 C18 30 32 28 32 38 C32 48 18 46 18 46Z" fill="#F59E0B"/>
-      <path d="M52 20 L52 80 L62 80 L62 56 C62 56 86 60 86 38 C86 16 62 20 52 20Z M62 30 C62 30 76 28 76 38 C76 48 62 46 62 46Z" fill="#22C55E"/>
+    <svg width={size} height={Math.round(size * 430 / 470)} viewBox="0 0 470 430" xmlns="http://www.w3.org/2000/svg">
+      <path d="M30 415 L30 195 A97.5 97.5 0 0 1 225 195 L225 415 L175 415 L175 195 A47.5 47.5 0 0 0 80 195 L80 415 Z" fill="#F5A623"/>
+      <path d="M440 415 L440 195 A97.5 97.5 0 0 0 245 195 L245 415 L295 415 L295 195 A47.5 47.5 0 0 1 390 195 L390 415 Z" fill="#2D8C3E"/>
+      <text x="127" y="270" textAnchor="middle" fontFamily="Georgia, serif" fontSize="22" fontWeight="bold" fill="#F5A623" letterSpacing="1">POLYSAN S.A.</text>
+      <text x="342" y="270" textAnchor="middle" fontFamily="Georgia, serif" fontSize="22" fontWeight="bold" fill="#2D8C3E" letterSpacing="1">POLCECAL S.A.</text>
     </svg>
   );
 }
