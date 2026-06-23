@@ -7,11 +7,11 @@ import { createClient } from "@/lib/supabase/client";
 const ROLES = [
   { value: "admin_sistema",  label: "Admin sistema" },
   { value: "administrador",  label: "Administrador" },
-  { value: "tecnico",        label: "Técnico" },
-  { value: "operador",       label: "Operador" },
+  { value: "gerente",        label: "Gerente" },
+  { value: "operario",       label: "Operario" },
 ];
 
-const EMPTY_FORM = { full_name: "", email: "", role: "tecnico", password: "" };
+const EMPTY_FORM = { full_name: "", email: "", role: "operario", password: "" };
 
 export default function UsuariosClient({ users }: { users: any[] }) {
   const router = useRouter();
