@@ -60,7 +60,7 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
   }
 
-  const { id, full_name, role, password } = await request.json();
+  const { id, full_name, role, password, email } = await request.json();
   if (!id) return NextResponse.json({ error: "ID requerido" }, { status: 400 });
 
   const admin = createAdminClient();
@@ -70,18 +70,25 @@ export async function PATCH(request: Request) {
   const dbPayload: any = {};
   if (full_name?.trim()) dbPayload.full_name = full_name.trim();
   if (role) dbPayload.role = role;
+  if (email?.trim()) dbPayload.email = email.trim();
 
   if (Object.keys(dbPayload).length > 0) {
     const { error } = await admin.from("app_users").update(dbPayload).eq("id", id);
     if (error) errors.push(error.message);
   }
 
-  // Update password in auth if provided
+  // Update auth user (email and/or password)
+  const authPayload: any = {};
+  if (email?.trim()) authPayload.email = email.trim();
   if (password) {
     if (password.length < 6) {
       return NextResponse.json({ error: "La contraseña debe tener al menos 6 caracteres" }, { status: 400 });
     }
-    const { error } = await admin.auth.admin.updateUserById(id, { password });
+    authPayload.password = password;
+  }
+
+  if (Object.keys(authPayload).length > 0) {
+    const { error } = await admin.auth.admin.updateUserById(id, authPayload);
     if (error) errors.push(error.message);
   }
 

@@ -60,6 +60,7 @@ export default function UsuariosClient({ users }: { users: any[] }) {
         body: JSON.stringify({
           id:        editing.id,
           full_name: form.full_name.trim(),
+          email:     form.email.trim() || undefined,
           role:      form.role,
           password:  form.password || undefined,
         }),
@@ -146,11 +147,15 @@ export default function UsuariosClient({ users }: { users: any[] }) {
               <Field label="Nombre completo" required>
                 <input value={form.full_name} onChange={(e) => field("full_name", e.target.value)} className="input" />
               </Field>
-              {!editing && (
-                <Field label="Email" required>
-                  <input type="email" value={form.email} onChange={(e) => field("email", e.target.value)} className="input" />
-                </Field>
-              )}
+              <Field label="Email" required={!editing}>
+                <input
+                  type="email"
+                  value={form.email}
+                  onChange={(e) => field("email", e.target.value)}
+                  className="input"
+                  placeholder="usuario@empresa.com"
+                />
+              </Field>
               <Field label={editing ? "Nueva contraseña (dejar vacío para no cambiar)" : "Contraseña"} required={!editing ? true : false}>
                 <input
                   type="password"
