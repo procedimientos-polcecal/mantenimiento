@@ -1,8 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+
+const OT_ESTADO: Record<string, { label: string; color: string; bg: string; dot: string }> = {
+  ATRASADO:   { label: "Atrasado",   color: "#DC2626", bg: "#FEF2F2", dot: "#EF4444" },
+  EN_PROCESO: { label: "En proceso", color: "#1D4ED8", bg: "#EFF6FF", dot: "#3B82F6" },
+  POR_HACER:  { label: "Por hacer",  color: "#B45309", bg: "#FFFBEB", dot: "#F59E0B" },
+  REALIZADO:  { label: "Realizado",  color: "#16A34A", bg: "#F0FDF4", dot: "#22C55E" },
+};
 
 const STATUS_OPTIONS = [
   { value: "OPERATIVO",         label: "Operativo" },
@@ -44,6 +51,14 @@ export default function EquipoDetalle({ equipo, sectors, historial, canEdit, use
   const [error, setError] = useState("");
 
   // Status change modal
+  // Work orders
+  const [workOrders, setWorkOrders] = useState<any[]>([]);
+  useEffect(() => {
+    fetch(`/api/work-orders?equipment_id=${equipo.id}&page=1`)
+      .then(r => r.json())
+      .then(d => setWorkOrders(d.data ?? []));
+  }, [equipo.id]);
+
   const [statusModal, setStatusModal] = useState(false);
   const [newStatus, setNewStatus] = useState(equipo.status);
   const [reason, setReason]     = useState("");
@@ -293,6 +308,42 @@ export default function EquipoDetalle({ equipo, sectors, historial, canEdit, use
                   {h.reason && (
                     <p className="mt-1 text-xs text-gray-500 italic">"{h.reason}"</p>
                   )}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* Work Orders */}
+      {workOrders.length > 0 && (
+        <section>
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-sm font-semibold text-gray-700">Órdenes de Trabajo</h2>
+            <Link href={`/ordenes?equipment_id=${equipo.id}`} className="text-xs text-blue-500 hover:underline">
+              Ver todas →
+            </Link>
+          </div>
+          <div className="rounded-xl border border-gray-200 bg-white divide-y divide-gray-100">
+            {workOrders.slice(0, 5).map((o: any) => {
+              const m = OT_ESTADO[o.estado] ?? OT_ESTADO.POR_HACER;
+              return (
+                <div key={o.id} className="px-4 py-3 flex items-start gap-3 text-sm">
+                  <span className="text-xs font-mono text-gray-400 w-10 shrink-0 pt-0.5">#{o.ot_number}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-gray-800 text-sm leading-snug">{o.descripcion ?? "—"}</p>
+                    {o.repuesto && <p className="text-xs text-gray-400 mt-0.5">Repuesto: {o.repuesto}</p>}
+                  </div>
+                  <div className="text-right shrink-0 space-y-1">
+                    <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full border"
+                      style={{ color: m.color, background: m.bg, borderColor: m.color + "33" }}>
+                      <span className="w-1.5 h-1.5 rounded-full" style={{ background: m.dot }} />
+                      {m.label}
+                    </span>
+                    {o.fecha && (
+                      <p className="text-xs text-gray-400">{new Date(o.fecha).toLocaleDateString("es-AR")}</p>
+                    )}
+                  </div>
                 </div>
               );
             })}
