@@ -15,7 +15,7 @@ export default async function DashboardPage() {
     { data: overdue },
     { data: plants },
     { data: sectors },
-    { data: plantStatusLog },
+    { data: sectorStatusLog },
     { data: recentExecutions },
   ] = await Promise.all([
     supabase.from("app_users").select("*").eq("id", user.id).single(),
@@ -36,9 +36,9 @@ export default async function DashboardPage() {
       .order("next_date", { ascending: true })
       .limit(10),
     supabase.from("plants").select("id, name, status").order("name"),
-    supabase.from("sectors").select("name, plants(name)").order("name"),
-    supabase.from("plant_status_log")
-      .select("*, plant:plant_id(name), changed_by_user:changed_by(full_name)")
+    supabase.from("sectors").select("id, name, status, plants(name)").order("name"),
+    supabase.from("sector_status_log")
+      .select("*, sector:sector_id(name, plants(name)), changed_by_user:changed_by(full_name)")
       .order("changed_at", { ascending: false })
       .limit(20),
     supabase.from("maintenance_executions")
@@ -57,7 +57,7 @@ export default async function DashboardPage() {
       overdue={overdue ?? []}
       plants={plants ?? []}
       sectors={sectors ?? []}
-      plantStatusLog={plantStatusLog ?? []}
+      sectorStatusLog={sectorStatusLog ?? []}
       recentExecutions={recentExecutions ?? []}
       canEdit={canEdit}
     />

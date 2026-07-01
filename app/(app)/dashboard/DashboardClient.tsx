@@ -43,7 +43,7 @@ const PLANT_COLORS: Record<string, string> = {
 
 export default function DashboardClient({
   appUser, equipment, upcoming, overdue,
-  plants, sectors, plantStatusLog, recentExecutions, canEdit,
+  plants, sectors, sectorStatusLog, recentExecutions, canEdit,
 }: {
   appUser: any;
   equipment: any[];
@@ -51,7 +51,8 @@ export default function DashboardClient({
   overdue: any[];
   plants: any[];
   sectors: any[];
-  plantStatusLog: any[];
+  plantStatusLog?: any[];   // kept for compat, unused
+  sectorStatusLog: any[];
   recentExecutions: any[];
   canEdit: boolean;
 }) {
@@ -59,8 +60,8 @@ export default function DashboardClient({
   const [plantFilter, setPlantFilter] = useState("TODAS");
   const [sectorFilter, setSectorFilter] = useState("TODOS");
 
-  // Plant status modal state
-  const [statusModal, setStatusModal] = useState<{ plant: any } | null>(null);
+  // Sector status modal state
+  const [statusModal, setStatusModal] = useState<{ sector: any } | null>(null);
   const [newStatus, setNewStatus] = useState("");
   const [reason, setReason] = useState("");
   const [statusSaving, setStatusSaving] = useState(false);
@@ -143,10 +144,10 @@ export default function DashboardClient({
   const pctOperativo = total > 0 ? Math.round((operativos / total) * 100) : 0;
   const filterLabel = sectorFilter !== "TODOS" ? sectorFilter : plantFilter !== "TODAS" ? plantFilter : null;
 
-  // ── Plant status modal handlers ─────────────────────────────────────────────
-  function openStatusModal(plant: any) {
-    setStatusModal({ plant });
-    setNewStatus(plant.status ?? "ACTIVA");
+  // ── Sector status modal handlers ────────────────────────────────────────────
+  function openStatusModal(sector: any) {
+    setStatusModal({ sector });
+    setNewStatus(sector.status ?? "ACTIVA");
     setReason("");
     setStatusError("");
   }
@@ -160,10 +161,10 @@ export default function DashboardClient({
     }
     setStatusSaving(true);
     setStatusError("");
-    const res = await fetch("/api/plantas/status", {
+    const res = await fetch("/api/sectores/status", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ plant_id: statusModal!.plant.id, new_status: newStatus, reason }),
+      body: JSON.stringify({ sector_id: statusModal!.sector.id, new_status: newStatus, reason }),
     });
     const data = await res.json();
     if (!res.ok) { setStatusError(data.error ?? "Error al actualizar"); setStatusSaving(false); return; }
@@ -207,78 +208,90 @@ export default function DashboardClient({
         </div>
       </div>
 
-      {/* Plant status cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        {plants.map((plant: any) => {
-          const meta = PLANT_STATUS_META[plant.status ?? "ACTIVA"] ?? PLANT_STATUS_META.ACTIVA;
-          const lastChange = plantStatusLog.find((l: any) => l.plant?.name === plant.name);
-          return (
-            <div key={plant.id} className="rounded-xl border p-4 flex items-start justify-between gap-3"
-              style={{ background: meta.bg, borderColor: meta.border }}>
-              <div className="min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="w-2 h-2 rounded-full shrink-0" style={{ background: meta.color }} />
-                  <span className="font-semibold text-gray-900 text-sm" style={{ fontFamily: "'Syne', sans-serif" }}>
-                    {plant.name}
-                  </span>
-                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full border"
-                    style={{ color: meta.color, borderColor: meta.border, background: "white" }}>
-                    {meta.label}
-                  </span>
-                </div>
-                {lastChange && (
-                  <p className="text-xs text-gray-500 mt-1.5 leading-snug">
-                    Último cambio: <span className="font-medium">{lastChange.changed_by_user?.full_name ?? "—"}</span>
-                    {" · "}{new Date(lastChange.changed_at).toLocaleDateString("es-AR", { day:"2-digit", month:"2-digit", year:"numeric", hour:"2-digit", minute:"2-digit" })}
-                    {lastChange.reason && <> · <span className="italic">"{lastChange.reason}"</span></>}
-                  </p>
-                )}
-              </div>
-              {canEdit && (
-                <button onClick={() => openStatusModal(plant)}
-                  className="shrink-0 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors">
-                  Cambiar estado
-                </button>
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Plant status log toggle */}
-      {plantStatusLog.length > 0 && (
-        <div>
-          <button onClick={() => setShowLog((v) => !v)}
-            className="text-xs text-gray-400 hover:text-gray-700 flex items-center gap-1 transition-colors">
-            <svg className={`w-3 h-3 transition-transform ${showLog ? "rotate-90" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-            {showLog ? "Ocultar" : "Ver"} historial de cambios de planta
-          </button>
-          {showLog && (
-            <div className="mt-2 rounded-xl border border-gray-200 bg-white overflow-hidden">
-              {plantStatusLog.map((log: any, i: number) => {
-                const meta = PLANT_STATUS_META[log.new_status] ?? PLANT_STATUS_META.ACTIVA;
+      {/* Sector status cards */}
+      {(() => {
+        const visibleSectors = plantFilter === "TODAS"
+          ? sectors
+          : sectors.filter((s: any) => s.plants?.name === plantFilter);
+        return (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {visibleSectors.map((sector: any) => {
+                const meta = PLANT_STATUS_META[sector.status ?? "ACTIVA"] ?? PLANT_STATUS_META.ACTIVA;
+                const lastChange = sectorStatusLog.find((l: any) => l.sector?.name === sector.name);
                 return (
-                  <div key={log.id} className={`px-4 py-3 text-sm ${i < plantStatusLog.length - 1 ? "border-b border-gray-100" : ""}`}>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-medium text-gray-800">{log.plant?.name}</span>
-                      <span className="text-gray-400">→</span>
-                      <span className="font-semibold text-xs px-2 py-0.5 rounded-full" style={{ color: meta.color, background: meta.bg }}>
-                        {meta.label}
-                      </span>
-                      <span className="text-xs text-gray-400 ml-auto">
-                        {log.changed_by_user?.full_name ?? "—"} · {new Date(log.changed_at).toLocaleDateString("es-AR", { day:"2-digit", month:"2-digit", year:"numeric", hour:"2-digit", minute:"2-digit" })}
-                      </span>
+                  <div key={sector.id} className="rounded-xl border p-4 flex items-start justify-between gap-3"
+                    style={{ background: meta.bg, borderColor: meta.border }}>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="w-2 h-2 rounded-full shrink-0" style={{ background: meta.color }} />
+                        <span className="font-semibold text-gray-900 text-sm" style={{ fontFamily: "'Syne', sans-serif" }}>
+                          {sector.name}
+                        </span>
+                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full border"
+                          style={{ color: meta.color, borderColor: meta.border, background: "white" }}>
+                          {meta.label}
+                        </span>
+                      </div>
+                      {plantFilter === "TODAS" && (
+                        <p className="text-xs text-gray-400 mt-0.5">{sector.plants?.name}</p>
+                      )}
+                      {lastChange && (
+                        <p className="text-xs text-gray-500 mt-1.5 leading-snug">
+                          <span className="font-medium">{lastChange.changed_by_user?.full_name ?? "—"}</span>
+                          {" · "}{new Date(lastChange.changed_at).toLocaleDateString("es-AR", { day:"2-digit", month:"2-digit" })}
+                          {lastChange.reason && <> · <span className="italic">"{lastChange.reason}"</span></>}
+                        </p>
+                      )}
                     </div>
-                    {log.reason && <p className="text-xs text-gray-500 mt-0.5 italic">"{log.reason}"</p>}
+                    {canEdit && (
+                      <button onClick={() => openStatusModal(sector)}
+                        className="shrink-0 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+                        Cambiar estado
+                      </button>
+                    )}
                   </div>
                 );
               })}
             </div>
-          )}
-        </div>
-      )}
+
+            {sectorStatusLog.length > 0 && (
+              <div>
+                <button onClick={() => setShowLog((v) => !v)}
+                  className="text-xs text-gray-400 hover:text-gray-700 flex items-center gap-1 transition-colors">
+                  <svg className={`w-3 h-3 transition-transform ${showLog ? "rotate-90" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                  {showLog ? "Ocultar" : "Ver"} historial de cambios de sector
+                </button>
+                {showLog && (
+                  <div className="mt-2 rounded-xl border border-gray-200 bg-white overflow-hidden">
+                    {sectorStatusLog.map((log: any, i: number) => {
+                      const meta = PLANT_STATUS_META[log.new_status] ?? PLANT_STATUS_META.ACTIVA;
+                      return (
+                        <div key={log.id} className={`px-4 py-3 text-sm ${i < sectorStatusLog.length - 1 ? "border-b border-gray-100" : ""}`}>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-medium text-gray-800">{log.sector?.name}</span>
+                            <span className="text-xs text-gray-400">{log.sector?.plants?.name}</span>
+                            <span className="text-gray-400">→</span>
+                            <span className="font-semibold text-xs px-2 py-0.5 rounded-full" style={{ color: meta.color, background: meta.bg }}>
+                              {meta.label}
+                            </span>
+                            <span className="text-xs text-gray-400 ml-auto">
+                              {log.changed_by_user?.full_name ?? "—"} · {new Date(log.changed_at).toLocaleDateString("es-AR", { day:"2-digit", month:"2-digit", year:"numeric", hour:"2-digit", minute:"2-digit" })}
+                            </span>
+                          </div>
+                          {log.reason && <p className="text-xs text-gray-500 mt-0.5 italic">"{log.reason}"</p>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+          </>
+        );
+      })()}
 
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -395,12 +408,12 @@ export default function DashboardClient({
         )}
       </section>
 
-      {/* Plant status modal */}
+      {/* Sector status modal */}
       {statusModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl space-y-4">
             <h2 className="text-base font-bold text-gray-900" style={{ fontFamily: "'Syne', sans-serif" }}>
-              Cambiar estado — {statusModal.plant.name}
+              Cambiar estado — {statusModal.sector.name}
             </h2>
 
             <div className="space-y-1">
@@ -440,9 +453,9 @@ export default function DashboardClient({
               </div>
             )}
 
-            {newStatus === statusModal.plant.status && (
+            {newStatus === statusModal.sector.status && (
               <p className="text-xs text-gray-400 bg-gray-50 rounded-lg px-3 py-2">
-                La planta ya se encuentra en este estado.
+                El sector ya se encuentra en este estado.
               </p>
             )}
 
@@ -451,7 +464,7 @@ export default function DashboardClient({
             <div className="flex gap-2 pt-1">
               <button
                 onClick={saveStatus}
-                disabled={statusSaving || newStatus === statusModal.plant.status}
+                disabled={statusSaving || newStatus === statusModal.sector.status}
                 className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
               >
                 {statusSaving ? "Guardando..." : "Confirmar cambio"}
