@@ -130,27 +130,38 @@ export async function POST(request: Request) {
 
     const admin = createAdminClient();
 
-    // Build equipment code → id map for fast lookup
-    const { data: equipmentList } = await admin
-      .from("equipment").select("id, code");
-    const codeMap = new Map<string, string>(
-      (equipmentList ?? []).map((e: any) => [e.code, e.id])
+    // Build lookup maps
+    const { data: equipmentList } = await admin.from("equipment").select("id, code, sector_id");
+    const codeMap = new Map<string, { id: string; sector_id: string }>(
+      (equipmentList ?? []).map((e: any) => [e.code, { id: e.id, sector_id: e.sector_id }])
+    );
+
+    const { data: sectorList } = await admin.from("sectors").select("id, name");
+    const sectorNameMap = new Map<string, string>(
+      (sectorList ?? []).map((s: any) => [s.name.toLowerCase().trim(), s.id])
     );
 
     const records: any[] = [];
 
-    for (const row of rows.slice(1)) {
+    for (let i = 0; i < rows.slice(1).length; i++) {
+      const row = rows.slice(1)[i];
       const otNum = Number(row[0]);
       if (!otNum || isNaN(otNum)) continue;
 
-      const equipoRaw  = (row[3] ?? "").toString().trim();
-      const equipoCode = extractCode(equipoRaw);
-      const equipmentId = equipoCode ? (codeMap.get(equipoCode) ?? null) : null;
+      const equipoRaw   = (row[3] ?? "").toString().trim();
+      const equipoCode  = extractCode(equipoRaw);
+      const equipEntry  = equipoCode ? codeMap.get(equipoCode) : null;
+      const equipmentId = equipEntry?.id ?? null;
+
+      const sectorRaw = (row[2] ?? "").toString().trim();
+      const sectorId  = equipEntry?.sector_id
+        ?? sectorNameMap.get(sectorRaw.toLowerCase()) ?? null;
 
       records.push({
         ot_number:       otNum,
         fecha:           excelDateToISO(row[1]),
-        sector_raw:      row[2] ?? null,
+        sector_raw:      sectorRaw || null,
+        sector_id:       sectorId,
         equipo_raw:      equipoRaw || null,
         equipo_code:     equipoCode,
         equipment_id:    equipmentId,
@@ -167,6 +178,7 @@ export async function POST(request: Request) {
         operario_1:      row[15] ?? null,
         operario_2:      row[16] ?? null,
         operario_3:      row[17] ?? null,
+        sheets_row:      i + 2, // 1-indexed, +1 for header
         prioridad:       row[18] ?? null,
         synced_at:       new Date().toISOString(),
       });
