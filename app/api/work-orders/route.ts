@@ -218,6 +218,17 @@ async function appendToSheet(ot: any): Promise<number | null> {
   return match ? Number(match[1]) : null;
 }
 
+function estadoToSheets(estado: string): string {
+  const map: Record<string, string> = {
+    REALIZADO:  "Realizado",
+    EN_PROCESO: "En proceso",
+    ATRASADO:   "Atrasado",
+    POR_HACER:  "Por hacer",
+    SUSPENDIDA: "Suspendida",
+  };
+  return map[estado] ?? estado;
+}
+
 async function updateSheetRow(ot: any): Promise<void> {
   const SHEET_ID = process.env.GOOGLE_SHEETS_ID ?? "";
   const TAB      = process.env.GOOGLE_SHEETS_TAB ?? "OT";
@@ -230,7 +241,7 @@ async function updateSheetRow(ot: any): Promise<void> {
     {
       method: "PUT",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ values: [[ot.estado ?? ""]] }),
+      body: JSON.stringify({ values: [[estadoToSheets(ot.estado)]] }),
     }
   );
   if (!res.ok) {
