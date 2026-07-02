@@ -223,13 +223,14 @@ async function updateSheetRow(ot: any): Promise<void> {
   const TAB      = process.env.GOOGLE_SHEETS_TAB ?? "OT";
   if (!SHEET_ID || !ot.sheets_row) return;
   const token = await getAccessToken();
-  const range = `${encodeURIComponent(TAB)}!A${ot.sheets_row}:S${ot.sheets_row}`;
+  // Only update the estado column (M) to avoid overwriting Sheets data not stored in DB
+  const range = `${encodeURIComponent(TAB)}!M${ot.sheets_row}`;
   const res = await fetch(
     `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${range}?valueInputOption=USER_ENTERED`,
     {
       method: "PUT",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ values: [otToRow(ot)] }),
+      body: JSON.stringify({ values: [[ot.estado ?? ""]] }),
     }
   );
   if (!res.ok) {
