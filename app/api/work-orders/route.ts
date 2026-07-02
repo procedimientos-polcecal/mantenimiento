@@ -126,11 +126,17 @@ export async function PATCH(request: Request) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   // Update Sheets row if we know which row it is
+  let sheets_error: string | null = null;
   if (updated.sheets_row && estado) {
-    try { await updateSheetRow(updated); } catch (_) { /* no credentials yet */ }
+    try {
+      await updateSheetRow(updated);
+    } catch (e: any) {
+      sheets_error = e.message ?? "Error al escribir en Sheets";
+      console.error("Sheets write-back error:", sheets_error);
+    }
   }
 
-  return NextResponse.json({ data: updated });
+  return NextResponse.json({ data: updated, sheets_error, sheets_row: updated.sheets_row });
 }
 
 // ── Sheets write helpers (stubs until JSON is configured) ────────────────────
