@@ -1,8 +1,14 @@
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
 const FROM = process.env.EMAIL_FROM ?? "mantenimiento@polcecal.com.ar";
 const TO_DEFAULT = process.env.EMAIL_ALERTS_TO ?? "";
+
+// Lazy: no instanciar en build-time si falta la API key
+function getResend(): Resend | null {
+  const key = process.env.RESEND_API_KEY;
+  if (!key) return null;
+  return new Resend(key);
+}
 
 export async function sendOverdueAlert(items: {
   code: string;
@@ -12,7 +18,8 @@ export async function sendOverdueAlert(items: {
   days_overdue: number;
   assigned_to?: string;
 }[]) {
-  if (!process.env.RESEND_API_KEY || items.length === 0) return;
+  const resend = getResend();
+  if (!resend || items.length === 0) return;
 
   const rows = items
     .map(
@@ -74,7 +81,8 @@ export async function sendExecutionNotification(data: {
   duration_hours?: number;
   observations?: string;
 }) {
-  if (!process.env.RESEND_API_KEY) return;
+  const resend = getResend();
+  if (!resend) return;
 
   const statusColor = data.execution_status === "completado" ? "#16a34a"
     : data.execution_status === "parcial" ? "#d97706" : "#dc2626";

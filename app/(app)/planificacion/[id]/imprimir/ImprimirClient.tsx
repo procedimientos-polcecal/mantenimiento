@@ -26,7 +26,7 @@ export default function ImprimirClient({ plan, items }: { plan: any; items: any[
           html2canvas: { scale: 2, useCORS: true, letterRendering: true },
           jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
           pagebreak: { mode: ["css"], before: ".pdf-page-break" },
-        })
+        } as any)
         .from(contentRef.current)
         .save();
     } finally {
