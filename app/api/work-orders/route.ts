@@ -108,18 +108,23 @@ export async function POST(request: Request) {
 }
 
 // ── PATCH: update OT estado from app ────────────────────────────────────────
+const VALID_ESTADOS = ["REALIZADO", "EN_PROCESO", "ATRASADO", "POR_HACER", "SUSPENDIDA"];
+
 export async function PATCH(request: Request) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
-  const { id, estado, ...rest } = await request.json();
+  const { id, estado } = await request.json();
   if (!id) return NextResponse.json({ error: "ID requerido" }, { status: 400 });
+  if (!estado || !VALID_ESTADOS.includes(estado)) {
+    return NextResponse.json({ error: "Estado inválido" }, { status: 400 });
+  }
 
+  // Solo se permite actualizar el estado. No aceptamos otros campos del body
+  // para evitar escritura arbitraria de columnas (mass-assignment).
   const admin = createAdminClient();
-  const update: any = { synced_at: new Date().toISOString() };
-  if (estado) update.estado = estado;
-  Object.assign(update, rest);
+  const update = { estado, synced_at: new Date().toISOString() };
 
   const { data: updated, error } = await admin
     .from("work_orders").update(update).eq("id", id).select().single();

@@ -28,9 +28,14 @@ function normalizeEstado(val: string): string {
 // POST /api/work-orders/webhook
 // Called by Google Apps Script onEdit trigger
 export async function POST(request: Request) {
-  // Validate secret token
+  // Validate secret token — falla CERRADO: si el secreto no está configurado,
+  // rechazamos todo en vez de dejar el endpoint abierto.
+  if (!WEBHOOK_SECRET) {
+    console.error("SHEETS_WEBHOOK_SECRET no configurado — webhook deshabilitado");
+    return NextResponse.json({ error: "Webhook no configurado" }, { status: 503 });
+  }
   const secret = request.headers.get("x-webhook-secret") ?? "";
-  if (WEBHOOK_SECRET && secret !== WEBHOOK_SECRET) {
+  if (secret !== WEBHOOK_SECRET) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
