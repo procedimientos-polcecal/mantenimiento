@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
@@ -44,10 +44,19 @@ const EMPTY_FORM = {
   estimated_hours: "",
 };
 
-export default function MantenimientosClient({ schedules, equipment, users, canEdit, currentUserId }: {
+const OT_ESTADO_META: Record<string, { label: string; color: string; bg: string }> = {
+  POR_HACER:  { label: "Por hacer",  color: "#B45309", bg: "#FFFBEB" },
+  EN_PROCESO: { label: "En proceso", color: "#1D4ED8", bg: "#EFF6FF" },
+  ATRASADO:   { label: "Atrasado",   color: "#DC2626", bg: "#FEF2F2" },
+  REALIZADO:  { label: "Realizado",  color: "#16A34A", bg: "#F0FDF4" },
+  SUSPENDIDA: { label: "Suspendida", color: "#B45309", bg: "#FFFBEB" },
+};
+
+export default function MantenimientosClient({ schedules, equipment, users, linkedOts, canEdit, currentUserId }: {
   schedules: any[];
   equipment: any[];
   users: any[];
+  linkedOts: any[];
   canEdit: boolean;
   currentUserId: string;
 }) {
@@ -60,6 +69,73 @@ export default function MantenimientosClient({ schedules, equipment, users, canE
   const [filterStatus, setFilterStatus] = useState("");
   const [refPhotos, setRefPhotos] = useState<File[]>([]);
   const [refPreviews, setRefPreviews] = useState<string[]>([]);
+
+  // OT ↔ mantenimiento
+  const [otBusy, setOtBusy] = useState<string | null>(null);   // schedule.id en proceso
+  const [otMsg, setOtMsg] = useState<{ id: string; text: string; ok: boolean } | null>(null);
+  const [linkModal, setLinkModal] = useState<any>(null);        // schedule al que vincular
+
+  // OTs vinculadas agrupadas por schedule_id
+  const otsBySchedule = new Map<string, any[]>();
+  for (const ot of linkedOts) {
+    const arr = otsBySchedule.get(ot.schedule_id) ?? [];
+    arr.push(ot);
+    otsBySchedule.set(ot.schedule_id, arr);
+  }
+
+  // Crear una OT nueva a partir del mantenimiento
+  async function crearOT(s: any) {
+    setOtBusy(s.id); setOtMsg(null);
+    const eq = s.equipment;
+    const body = {
+      equipment_id:    s.equipment_id,
+      sector_id:       eq?.sector_id ?? null,
+      sector_raw:      eq?.sectors?.name ?? null,
+      equipo_raw:      eq ? `${eq.code} — ${eq.name}` : null,
+      equipo_code:     eq?.code ?? null,
+      especialidad:    s.maintenance_type ?? null,
+      tipo:            "PROGRAMADO",
+      descripcion:     s.description?.trim() || `${s.maintenance_type} — ${eq?.name ?? ""}`.trim(),
+      fecha_ejecucion: s.next_date ?? null,
+      estado:          "POR_HACER",
+      horas:           s.estimated_hours ?? null,
+      quien:           s.assigned_user?.full_name ?? null,
+      schedule_id:     s.id,
+    };
+    const res = await fetch("/api/work-orders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    setOtBusy(null);
+    if (!res.ok) { setOtMsg({ id: s.id, text: data.error ?? "Error al crear OT", ok: false }); return; }
+    setOtMsg({ id: s.id, text: `OT #${data.ot_number} creada`, ok: true });
+    router.refresh();
+  }
+
+  // Vincular una OT existente
+  async function vincularOT(scheduleId: string, workOrderId: string) {
+    setOtBusy(scheduleId);
+    const res = await fetch("/api/work-orders/link", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ work_order_id: workOrderId, schedule_id: scheduleId }),
+    });
+    setOtBusy(null);
+    setLinkModal(null);
+    if (res.ok) router.refresh();
+  }
+
+  // Desvincular una OT
+  async function desvincularOT(workOrderId: string) {
+    await fetch("/api/work-orders/link", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ work_order_id: workOrderId, schedule_id: null }),
+    });
+    router.refresh();
+  }
 
   function handleRefPhotos(files: FileList | null) {
     if (!files) return;
@@ -301,6 +377,42 @@ export default function MantenimientosClient({ schedules, equipment, users, canE
                   )}
                 </div>
               </div>
+
+              {/* OTs vinculadas + acciones */}
+              <div className="mt-3 pt-3 border-t border-gray-100 flex items-center gap-2 flex-wrap">
+                {(otsBySchedule.get(s.id) ?? []).map((ot: any) => {
+                  const m = OT_ESTADO_META[ot.estado] ?? { label: ot.estado, color: "#64748B", bg: "#F1F5F9" };
+                  return (
+                    <span key={ot.id}
+                      className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold border"
+                      style={{ color: m.color, background: m.bg, borderColor: m.color + "33" }}>
+                      OT #{ot.ot_number} · {m.label}
+                      {canEdit && (
+                        <button onClick={() => desvincularOT(ot.id)} title="Desvincular"
+                          className="ml-0.5 text-gray-400 hover:text-red-600 leading-none">×</button>
+                      )}
+                    </span>
+                  );
+                })}
+                {(otsBySchedule.get(s.id)?.length ?? 0) === 0 && (
+                  <span className="text-xs text-gray-400">Sin OT vinculada</span>
+                )}
+                {canEdit && (
+                  <div className="ml-auto flex items-center gap-2">
+                    {otMsg && otMsg.id === s.id && (
+                      <span className={`text-xs ${otMsg.ok ? "text-green-600" : "text-red-600"}`}>{otMsg.text}</span>
+                    )}
+                    <button onClick={() => crearOT(s)} disabled={otBusy === s.id}
+                      className="rounded-lg border border-gray-300 px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-40">
+                      {otBusy === s.id ? "..." : "+ Crear OT"}
+                    </button>
+                    <button onClick={() => setLinkModal(s)}
+                      className="rounded-lg border border-gray-300 px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+                      Vincular OT
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           );
         })}
@@ -423,6 +535,78 @@ export default function MantenimientosClient({ schedules, equipment, users, canE
           </div>
         </div>
       )}
+
+      {/* Modal: vincular OT existente */}
+      {linkModal && (
+        <LinkOTModal
+          schedule={linkModal}
+          busy={otBusy === linkModal.id}
+          onClose={() => setLinkModal(null)}
+          onPick={(otId) => vincularOT(linkModal.id, otId)}
+        />
+      )}
+    </div>
+  );
+}
+
+function LinkOTModal({ schedule, busy, onClose, onPick }: {
+  schedule: any; busy: boolean;
+  onClose: () => void; onPick: (workOrderId: string) => void;
+}) {
+  const [q, setQ] = useState("");
+  const [results, setResults] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  async function search(term: string) {
+    setLoading(true);
+    const params = new URLSearchParams({ page: "1" });
+    if (term.trim()) params.set("q", term.trim());
+    const res = await fetch(`/api/work-orders?${params}`);
+    const json = await res.json();
+    setResults(json.data ?? []);
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    const t = setTimeout(() => search(q), 300);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/40 p-4">
+      <div className="w-full max-w-lg rounded-2xl bg-white p-6 space-y-3 shadow-xl max-h-[85vh] flex flex-col">
+        <h2 className="text-base font-bold text-gray-900">Vincular OT existente</h2>
+        <p className="text-xs text-gray-400">
+          {schedule.equipment?.code} — {schedule.equipment?.name}
+        </p>
+        <input autoFocus value={q} onChange={(e) => setQ(e.target.value)}
+          placeholder="Buscar por N° OT, equipo, descripción..." className="input" />
+        <div className="flex-1 overflow-y-auto space-y-1.5 -mx-1 px-1">
+          {loading && <p className="text-sm text-gray-400 py-4 text-center">Buscando...</p>}
+          {!loading && results.length === 0 && (
+            <p className="text-sm text-gray-400 py-4 text-center">Sin resultados.</p>
+          )}
+          {!loading && results.map((o) => {
+            const m = OT_ESTADO_META[o.estado] ?? { label: o.estado, color: "#64748B", bg: "#F1F5F9" };
+            return (
+              <button key={o.id} onClick={() => onPick(o.id)} disabled={busy}
+                className="w-full text-left rounded-lg border border-gray-200 px-3 py-2 hover:bg-gray-50 transition-colors disabled:opacity-40 flex items-center gap-2">
+                <span className="font-mono text-xs font-bold text-gray-500 shrink-0">#{o.ot_number}</span>
+                <span className="text-sm text-gray-800 truncate flex-1">{o.descripcion ?? "—"}</span>
+                <span className="shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full"
+                  style={{ color: m.color, background: m.bg }}>{m.label}</span>
+              </button>
+            );
+          })}
+        </div>
+        <div className="flex justify-end pt-1">
+          <button onClick={onClose}
+            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+            Cerrar
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

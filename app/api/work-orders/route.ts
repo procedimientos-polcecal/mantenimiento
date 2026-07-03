@@ -55,6 +55,7 @@ export async function POST(request: Request) {
     especialidad, tipo, quien, descripcion, repuesto,
     fecha, fecha_ejecucion, fecha_cierre,
     estado, contratista, horas, operario_1, operario_2, operario_3, prioridad,
+    schedule_id,
   } = body;
 
   if (!descripcion?.trim()) {
@@ -90,6 +91,7 @@ export async function POST(request: Request) {
     operario_2:      operario_2?.trim() || null,
     operario_3:      operario_3?.trim() || null,
     prioridad:       prioridad || null,
+    schedule_id:     schedule_id || null,
     app_created:     true,
     created_by:      user.id,
     created_at_app:  new Date().toISOString(),

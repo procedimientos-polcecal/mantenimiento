@@ -14,14 +14,14 @@ export default async function MantenimientosPage() {
     .eq("id", user.id)
     .single();
 
-  const [{ data: schedules }, { data: equipment }, { data: users }] = await Promise.all([
+  const [{ data: schedules }, { data: equipment }, { data: users }, { data: linkedOts }] = await Promise.all([
     supabase
       .from("maintenance_schedules")
-      .select("*, equipment(id, name, code, sectors(name, plants(name))), assigned_user:assigned_to(full_name)")
+      .select("*, equipment(id, name, code, sector_id, sectors(name, plants(name))), assigned_user:assigned_to(full_name)")
       .order("next_date", { ascending: true }),
     supabase
       .from("equipment")
-      .select("id, name, code, sectors(name, plants(name))")
+      .select("id, name, code, sector_id, sectors(name, plants(name))")
       .eq("is_active", true)
       .order("code"),
     supabase
@@ -29,6 +29,11 @@ export default async function MantenimientosPage() {
       .select("id, full_name, role")
       .eq("is_active", true)
       .order("full_name"),
+    supabase
+      .from("work_orders")
+      .select("id, ot_number, estado, descripcion, schedule_id")
+      .not("schedule_id", "is", null)
+      .order("ot_number", { ascending: false }),
   ]);
 
   const canEdit =
@@ -39,6 +44,7 @@ export default async function MantenimientosPage() {
       schedules={schedules ?? []}
       equipment={equipment ?? []}
       users={users ?? []}
+      linkedOts={linkedOts ?? []}
       canEdit={canEdit}
       currentUserId={user.id}
     />
