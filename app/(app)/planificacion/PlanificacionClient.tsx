@@ -11,6 +11,15 @@ export default function PlanificacionClient({ plans, canEdit }: { plans: any[]; 
   const [titulo, setTitulo]     = useState("");
   const [saving, setSaving]     = useState(false);
   const [error, setError]       = useState("");
+  const [deleting, setDeleting] = useState<string | null>(null);
+
+  async function deletePlan(id: string) {
+    if (!confirm("¿Eliminar este plan?")) return;
+    setDeleting(id);
+    await fetch(`/api/planificacion/${id}`, { method: "DELETE" });
+    setDeleting(null);
+    router.refresh();
+  }
 
   async function create(e: React.FormEvent) {
     e.preventDefault();
@@ -60,8 +69,8 @@ export default function PlanificacionClient({ plans, canEdit }: { plans: any[]; 
             const itemCount = p.daily_plan_items?.length ?? 0;
             const isToday = p.fecha === new Date().toISOString().slice(0, 10);
             return (
-              <Link key={p.id} href={`/planificacion/${p.id}`}
-                className="flex items-center gap-4 px-4 py-3 hover:bg-gray-50 transition-colors">
+              <div key={p.id} className="flex items-center gap-2 px-4 py-3 hover:bg-gray-50 transition-colors">
+              <Link href={`/planificacion/${p.id}`} className="flex items-center gap-4 flex-1 min-w-0">
                 {/* Date box */}
                 <div className={`shrink-0 w-14 rounded-xl text-center py-1.5 ${isToday ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-700"}`}>
                   <div className="text-lg font-bold leading-none">{fecha.getDate()}</div>
@@ -88,6 +97,18 @@ export default function PlanificacionClient({ plans, canEdit }: { plans: any[]; 
                   </svg>
                 </div>
               </Link>
+              {canEdit && (
+                <button
+                  onClick={() => deletePlan(p.id)}
+                  disabled={deleting === p.id}
+                  className="shrink-0 p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-40"
+                  title="Eliminar plan">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </button>
+              )}
+              </div>
             );
           })}
         </div>
