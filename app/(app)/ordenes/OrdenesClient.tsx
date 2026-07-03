@@ -36,6 +36,10 @@ export default function OrdenesClient({
   const [showNew, setShowNew]   = useState(false);
   const [view, setView]         = useState<"list" | "kanban">("list");
 
+  // Kanban: cada columna se carga por separado (con su propio filtro y total)
+  const [kanbanData, setKanbanData] = useState<Record<string, { items: any[]; count: number }>>({});
+  const [kanbanLoading, setKanbanLoading] = useState(false);
+
   const load = useCallback(async () => {
     setLoading(true);
     const params = new URLSearchParams({ page: String(page) });
@@ -48,7 +52,26 @@ export default function OrdenesClient({
     setLoading(false);
   }, [page, estadoFilter, search]);
 
-  useEffect(() => { load(); }, [load]);
+  const KANBAN_ESTADOS = ["ATRASADO", "EN_PROCESO", "POR_HACER", "REALIZADO"];
+  const loadKanban = useCallback(async () => {
+    setKanbanLoading(true);
+    const results = await Promise.all(
+      KANBAN_ESTADOS.map((e) =>
+        fetch(`/api/work-orders?estado=${e}&page=1`).then((r) => r.json())
+      )
+    );
+    const data: Record<string, { items: any[]; count: number }> = {};
+    KANBAN_ESTADOS.forEach((e, i) => {
+      data[e] = { items: results[i].data ?? [], count: results[i].count ?? 0 };
+    });
+    setKanbanData(data);
+    setKanbanLoading(false);
+  }, []);
+
+  useEffect(() => {
+    if (view === "kanban") loadKanban();
+    else load();
+  }, [view, load, loadKanban]);
 
   useEffect(() => {
     fetch("/api/work-orders/sync")
@@ -71,15 +94,17 @@ export default function OrdenesClient({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id, estado }),
     });
-    load();
+    if (view === "kanban") loadKanban();
+    else load();
   }
 
   const totalPages = Math.ceil(count / 50);
 
-  // Kanban groups (all loaded for kanban, paginated for list)
+  // Kanban groups — cada columna con sus items cargados y su total real
   const kanbanGroups = ESTADOS.slice(1).map(e => ({
     ...e,
-    items: orders.filter(o => o.estado === e.value),
+    items: kanbanData[e.value]?.items ?? [],
+    count: kanbanData[e.value]?.count ?? 0,
   }));
 
   return (
@@ -154,31 +179,40 @@ export default function OrdenesClient({
         </div>
       )}
 
-      {loading ? (
-        <div className="text-center py-12 text-gray-400 text-sm">Cargando...</div>
-      ) : view === "kanban" ? (
+      {view === "kanban" ? (
         /* ── Kanban ── */
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 items-start">
-          {kanbanGroups.map((col) => (
-            <div key={col.value}>
-              <div className="flex items-center gap-2 mb-3">
-                <span className="w-2 h-2 rounded-full" style={{ background: col.dot }} />
-                <span className="text-xs font-bold text-gray-700 uppercase tracking-wide">{col.label}</span>
-                <span className="ml-auto text-xs font-mono text-gray-400">{col.items.length}</span>
+        kanbanLoading ? (
+          <div className="text-center py-12 text-gray-400 text-sm">Cargando...</div>
+        ) : (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 items-start">
+            {kanbanGroups.map((col) => (
+              <div key={col.value}>
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="w-2 h-2 rounded-full" style={{ background: col.dot }} />
+                  <span className="text-xs font-bold text-gray-700 uppercase tracking-wide">{col.label}</span>
+                  <span className="ml-auto text-xs font-mono text-gray-400">{col.count}</span>
+                </div>
+                <div className="space-y-2">
+                  {col.count === 0 && (
+                    <div className="rounded-xl border border-dashed border-gray-200 py-8 text-center text-xs text-gray-400">
+                      Sin órdenes
+                    </div>
+                  )}
+                  {col.items.map((o) => (
+                    <KanbanCard key={o.id} order={o} canEdit={canEdit} onChangeEstado={changeEstado} />
+                  ))}
+                  {col.count > col.items.length && (
+                    <div className="text-center text-xs text-gray-400 py-1">
+                      +{col.count - col.items.length} más — usá la vista Lista para ver todas
+                    </div>
+                  )}
+                </div>
               </div>
-              <div className="space-y-2">
-                {col.items.length === 0 && (
-                  <div className="rounded-xl border border-dashed border-gray-200 py-8 text-center text-xs text-gray-400">
-                    Sin órdenes
-                  </div>
-                )}
-                {col.items.map((o) => (
-                  <KanbanCard key={o.id} order={o} canEdit={canEdit} onChangeEstado={changeEstado} />
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )
+      ) : loading ? (
+        <div className="text-center py-12 text-gray-400 text-sm">Cargando...</div>
       ) : (
         /* ── List ── */
         <>
