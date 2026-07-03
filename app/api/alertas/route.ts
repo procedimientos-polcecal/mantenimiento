@@ -3,8 +3,12 @@ import { createClient } from "@/lib/supabase/server";
 import { sendOverdueAlert } from "@/lib/email";
 
 export async function GET(request: Request) {
+  const cronSecret = process.env.CRON_SECRET;
+  if (!cronSecret) {
+    return NextResponse.json({ error: "CRON_SECRET no configurado" }, { status: 503 });
+  }
   const auth = request.headers.get("authorization");
-  if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (auth !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

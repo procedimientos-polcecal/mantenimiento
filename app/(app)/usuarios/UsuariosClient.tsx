@@ -49,8 +49,8 @@ export default function UsuariosClient({ users }: { users: any[] }) {
 
     if (editing) {
       // PATCH — update name, role, and optionally password
-      if (form.password && form.password.length < 6) {
-        setError("La contraseña debe tener al menos 6 caracteres.");
+      if (form.password && form.password.length < 8) {
+        setError("La contraseña debe tener al menos 8 caracteres.");
         setSaving(false);
         return;
       }
@@ -69,8 +69,8 @@ export default function UsuariosClient({ users }: { users: any[] }) {
       if (!res.ok) { setError(json.error ?? "Error al actualizar."); setSaving(false); return; }
     } else {
       if (!form.email.trim()) { setError("El email es obligatorio."); setSaving(false); return; }
-      if (!form.password || form.password.length < 6) {
-        setError("La contraseña debe tener al menos 6 caracteres.");
+      if (!form.password || form.password.length < 8) {
+        setError("La contraseña debe tener al menos 8 caracteres.");
         setSaving(false);
         return;
       }
@@ -162,7 +162,7 @@ export default function UsuariosClient({ users }: { users: any[] }) {
                   value={form.password}
                   onChange={(e) => field("password", e.target.value)}
                   className="input"
-                  placeholder={editing ? "Nueva contraseña..." : "Mínimo 6 caracteres"}
+                  placeholder={editing ? "Nueva contraseña..." : "Mínimo 8 caracteres"}
                   autoComplete="new-password"
                 />
               </Field>

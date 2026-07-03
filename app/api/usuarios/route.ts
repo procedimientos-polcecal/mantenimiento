@@ -21,6 +21,9 @@ export async function POST(request: Request) {
   if (!full_name?.trim() || !email?.trim() || !password) {
     return NextResponse.json({ error: "Campos incompletos" }, { status: 400 });
   }
+  if (password.length < 8) {
+    return NextResponse.json({ error: "La contraseña debe tener al menos 8 caracteres" }, { status: 400 });
+  }
 
   const admin = createAdminClient();
 
@@ -64,6 +67,20 @@ export async function PATCH(request: Request) {
   if (!id) return NextResponse.json({ error: "ID requerido" }, { status: 400 });
 
   const admin = createAdminClient();
+
+  // ── Prevención de escalada de privilegios ────────────────────────────────
+  // Solo un admin_sistema puede tocar a otro admin_sistema o asignar ese rol.
+  if (callerRole !== "admin_sistema") {
+    const { data: target } = await admin
+      .from("app_users").select("role").eq("id", id).single();
+    if (target?.role === "admin_sistema") {
+      return NextResponse.json({ error: "No podés modificar un administrador de sistema" }, { status: 403 });
+    }
+    if (role === "admin_sistema") {
+      return NextResponse.json({ error: "No podés asignar el rol administrador de sistema" }, { status: 403 });
+    }
+  }
+
   const errors: string[] = [];
 
   // Update app_users table
@@ -81,8 +98,8 @@ export async function PATCH(request: Request) {
   const authPayload: any = {};
   if (email?.trim()) authPayload.email = email.trim();
   if (password) {
-    if (password.length < 6) {
-      return NextResponse.json({ error: "La contraseña debe tener al menos 6 caracteres" }, { status: 400 });
+    if (password.length < 8) {
+      return NextResponse.json({ error: "La contraseña debe tener al menos 8 caracteres" }, { status: 400 });
     }
     authPayload.password = password;
   }

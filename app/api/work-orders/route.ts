@@ -3,6 +3,10 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function GET(request: Request) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+
   const { searchParams } = new URL(request.url);
   const estado       = searchParams.get("estado");
   const equipment_id = searchParams.get("equipment_id");
@@ -19,7 +23,13 @@ export async function GET(request: Request) {
 
   if (estado)       query = query.eq("estado", estado);
   if (equipment_id) query = query.eq("equipment_id", equipment_id);
-  if (search)       query = query.or(`descripcion.ilike.%${search}%,equipo_raw.ilike.%${search}%,sector_raw.ilike.%${search}%`);
+  if (search) {
+    // Sanitizar: quitar caracteres que rompen el filtro PostgREST (,()*\)
+    const safe = search.replace(/[,()*\\%]/g, "").trim();
+    if (safe) {
+      query = query.or(`descripcion.ilike.%${safe}%,equipo_raw.ilike.%${safe}%,sector_raw.ilike.%${safe}%`);
+    }
+  }
 
   const { data, count, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

@@ -4,9 +4,25 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 type Params = { params: Promise<{ id: string }> };
 
+// Verifica sesión + rol admin. Devuelve una respuesta de error o null si OK.
+async function requireAdmin() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: NextResponse.json({ error: "No autorizado" }, { status: 401 }), user: null };
+  const { data: caller } = await supabase
+    .from("app_users").select("role").eq("id", user.id).single();
+  if (!["admin_sistema", "administrador"].includes(caller?.role ?? "")) {
+    return { error: NextResponse.json({ error: "Sin permisos" }, { status: 403 }), user: null };
+  }
+  return { error: null, user };
+}
+
 // GET — plan + items
 export async function GET(_: Request, { params }: Params) {
   const { id } = await params;
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   const admin = createAdminClient();
   const { data: plan, error } = await admin
     .from("daily_plans")
@@ -19,9 +35,8 @@ export async function GET(_: Request, { params }: Params) {
 // PATCH — update plan header
 export async function PATCH(request: Request, { params }: Params) {
   const { id } = await params;
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  const { error: authErr } = await requireAdmin();
+  if (authErr) return authErr;
 
   const body = await request.json();
   const admin = createAdminClient();
@@ -79,6 +94,8 @@ export async function PATCH(request: Request, { params }: Params) {
 // DELETE — delete plan
 export async function DELETE(_: Request, { params }: Params) {
   const { id } = await params;
+  const { error: authErr } = await requireAdmin();
+  if (authErr) return authErr;
   const admin = createAdminClient();
   await admin.from("daily_plans").delete().eq("id", id);
   return NextResponse.json({ success: true });

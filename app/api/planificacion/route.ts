@@ -4,6 +4,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 // GET — list plans
 export async function GET(request: Request) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+
   const { searchParams } = new URL(request.url);
   const limit = Number(searchParams.get("limit") ?? 20);
   const admin = createAdminClient();

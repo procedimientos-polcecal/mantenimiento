@@ -2,6 +2,8 @@ import { Resend } from "resend";
 
 const FROM = process.env.EMAIL_FROM ?? "mantenimiento@polcecal.com.ar";
 const TO_DEFAULT = process.env.EMAIL_ALERTS_TO ?? "";
+// URL pública del sistema (configurable para no depender del dominio de Vercel)
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://mantenimiento-kfi9.vercel.app";
 
 // Lazy: no instanciar en build-time si falta la API key
 function getResend(): Resend | null {
@@ -57,7 +59,7 @@ export async function sendOverdueAlert(items: {
           <tbody>${rows}</tbody>
         </table>
         <div style="margin-top:20px;padding:12px;background:#fef3c7;border-radius:6px;font-size:13px;color:#92400e">
-          Accedé al sistema: <a href="https://mantenimiento-kfi9.vercel.app/mantenimientos" style="color:#1d4ed8">mantenimiento-kfi9.vercel.app</a>
+          Accedé al sistema: <a href="${APP_URL}/mantenimientos" style="color:#1d4ed8">${APP_URL.replace(/^https?:\/\//, "")}</a>
         </div>
       </div>
     </div>
