@@ -56,6 +56,31 @@ export default async function DashboardPage() {
   );
   const otStats = OT_ESTADOS.map((estado, i) => ({ estado, count: otCounts[i].count ?? 0 }));
 
+  // ── Tipo de trabajo (correctivo/preventivo) y ejecución (propio/contratado) ──
+  // Los valores vienen del Sheet como texto libre → se categorizan con match flexible.
+  const { data: woMeta } = await supabase
+    .from("work_orders")
+    .select("tipo, quien")
+    .range(0, 9999);
+
+  const tipoTally: Record<string, number> = { Correctivo: 0, Preventivo: 0, Otro: 0 };
+  const quienTally: Record<string, number> = { Propio: 0, Contratado: 0, Mixto: 0, Otro: 0 };
+  for (const w of woMeta ?? []) {
+    const t = (w.tipo ?? "").toString().toLowerCase();
+    if (t) {
+      if (t.includes("correctiv")) tipoTally.Correctivo++;
+      else if (t.includes("prevent") || t.includes("program")) tipoTally.Preventivo++;
+      else tipoTally.Otro++;
+    }
+    const q = (w.quien ?? "").toString().toLowerCase();
+    if (q) {
+      if (q.includes("contrat")) quienTally.Contratado++;
+      else if (q.includes("propio") || q.includes("interno")) quienTally.Propio++;
+      else if (q.includes("mixto")) quienTally.Mixto++;
+      else quienTally.Otro++;
+    }
+  }
+
   const canEdit = ["admin_sistema", "administrador"].includes(appUser?.role ?? "");
 
   return (
@@ -69,6 +94,8 @@ export default async function DashboardPage() {
       sectorStatusLog={sectorStatusLog ?? []}
       recentExecutions={recentExecutions ?? []}
       otStats={otStats}
+      tipoTally={tipoTally}
+      quienTally={quienTally}
       canEdit={canEdit}
     />
   );

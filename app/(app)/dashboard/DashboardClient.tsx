@@ -47,11 +47,18 @@ const OT_ESTADO_META: Record<string, { label: string; color: string }> = {
   SUSPENDIDA: { label: "Suspendida", color: "#F59E0B" },
 };
 
+const TIPO_COLORS: Record<string, string> = {
+  Correctivo: "#EF4444", Preventivo: "#22C55E", Otro: "#94A3B8",
+};
+const QUIEN_COLORS: Record<string, string> = {
+  Propio: "#3B82F6", Contratado: "#8B5CF6", Mixto: "#F59E0B", Otro: "#94A3B8",
+};
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function DashboardClient({
   appUser, equipment, upcoming, overdue,
-  plants, sectors, sectorStatusLog, recentExecutions, otStats, canEdit,
+  plants, sectors, sectorStatusLog, recentExecutions, otStats, tipoTally, quienTally, canEdit,
 }: {
   appUser: any;
   equipment: any[];
@@ -63,6 +70,8 @@ export default function DashboardClient({
   sectorStatusLog: any[];
   recentExecutions: any[];
   otStats: { estado: string; count: number }[];
+  tipoTally: Record<string, number>;
+  quienTally: Record<string, number>;
   canEdit: boolean;
 }) {
   const router = useRouter();
@@ -405,6 +414,12 @@ export default function DashboardClient({
         </div>
       </div>
 
+      {/* Indicadores: tipo de trabajo y ejecución */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <IndicatorGroup title="Tipo de trabajo" tally={tipoTally} colors={TIPO_COLORS} />
+        <IndicatorGroup title="Ejecución del trabajo" tally={quienTally} colors={QUIEN_COLORS} />
+      </div>
+
       {/* Execution trend */}
       {executionTrend.length > 0 && (
         <div className="bg-white rounded-2xl border border-gray-200 p-5">
@@ -530,6 +545,47 @@ export default function DashboardClient({
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
+
+function IndicatorGroup({ title, tally, colors }: {
+  title: string; tally: Record<string, number>; colors: Record<string, string>;
+}) {
+  const entries = Object.entries(tally).filter(([, v]) => v > 0);
+  const total = entries.reduce((a, [, v]) => a + v, 0);
+  return (
+    <div className="bg-white rounded-2xl border border-gray-200 p-5">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-sm font-semibold text-gray-700" style={{ fontFamily: "'Syne', sans-serif" }}>{title}</h2>
+        <span className="text-xs text-gray-400">Total: <span className="font-semibold text-gray-700">{total}</span></span>
+      </div>
+      {total === 0 ? (
+        <div className="h-24 flex items-center justify-center text-sm text-gray-400">Sin datos</div>
+      ) : (
+        <div className="space-y-3">
+          {entries.map(([label, value]) => {
+            const color = colors[label] ?? "#94A3B8";
+            const pct = Math.round((value / total) * 100);
+            return (
+              <div key={label}>
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full" style={{ background: color }} />
+                    <span className="text-xs font-medium text-gray-600">{label}</span>
+                  </div>
+                  <span className="text-xs text-gray-500">
+                    <span className="font-bold text-gray-900">{value}</span> · {pct}%
+                  </span>
+                </div>
+                <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
+                  <div className="h-full rounded-full" style={{ width: `${pct}%`, background: color }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function KpiCard({ label, value, accent, sub }: { label: string; value: number; accent: string; sub?: string }) {
   return (
