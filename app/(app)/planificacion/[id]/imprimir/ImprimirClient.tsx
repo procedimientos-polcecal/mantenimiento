@@ -72,24 +72,28 @@ export default function ImprimirClient({ plan, items }: { plan: any; items: any[
           .no-print { display: none !important; }
           aside, .sidebar, .mobile-topbar, nav { display: none !important; }
           main, [class*="main"], body > div { margin: 0 !important; padding: 0 !important; }
+          .print-content { padding: 0 !important; margin: 0 !important; }
           body { background: white !important; margin: 0 !important; }
           .ot-page { page-break-after: always; page-break-inside: avoid; }
           .ot-page:last-child { page-break-after: avoid; }
         }
         body { background: #f1f5f9; font-family: Arial, Helvetica, sans-serif; }
 
-        /* A4 = 297mm tall, margins 10mm top+bottom = 277mm usable */
+        /* A4 = 297mm tall, @page margin 10mm top+bottom → 277mm usable.
+           Usamos 270mm para dejar holgura y evitar que redondeos empujen
+           la última fila a una 2da página. */
         .ot-page {
           width: 182mm;
-          height: 277mm;
+          height: 270mm;
           margin: 0 auto 16mm;
           background: white;
           border: 1px solid #ccc;
           display: flex;
           flex-direction: column;
+          overflow: hidden;
         }
         @media print {
-          .ot-page { width: 100%; height: 277mm; margin: 0; border: none; }
+          .ot-page { width: 100%; height: 270mm; margin: 0; border: none; }
         }
 
         .ot-table {
@@ -144,7 +148,7 @@ export default function ImprimirClient({ plan, items }: { plan: any; items: any[
         .cell-firma   { width: 100px; flex-shrink: 0; }
       `}</style>
 
-      <div className="py-8 px-4" ref={contentRef}>
+      <div className="print-content py-8 px-4" ref={contentRef}>
         {items.map((item, idx) => {
           const assignee = item.assigned_user?.full_name ?? item.assigned_name ?? "";
           const fechaEjec = item.fecha_ejecucion
