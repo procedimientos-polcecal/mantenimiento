@@ -4,8 +4,8 @@
   "description": "Sistema de gestión de mantenimiento preventivo industrial",
   "start_url": "/dashboard",
   "display": "standalone",
-  "background_color": "#f9fafb",
-  "theme_color": "#2563eb",
+  "background_color": "#0A0F1C",
+  "theme_color": "#0A0F1C",
   "orientation": "portrait-primary",
   "icons": [
     {
