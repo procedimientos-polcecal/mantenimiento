@@ -149,16 +149,6 @@ export default function DashboardClient({
   }, [recentExecutions]);
 
   // OTs por estado (no se filtra por planta/sector: es global)
-  const otData = useMemo(() =>
-    otStats
-      .map((s) => ({
-        estado: OT_ESTADO_META[s.estado]?.label ?? s.estado,
-        cantidad: s.count,
-        color: OT_ESTADO_META[s.estado]?.color ?? "#94A3B8",
-      }))
-      .filter((d) => d.cantidad > 0),
-    [otStats]
-  );
   const otTotal = useMemo(() => otStats.reduce((a, s) => a + s.count, 0), [otStats]);
   const otPendientes = useMemo(() =>
     otStats.filter((s) => ["POR_HACER", "EN_PROCESO", "ATRASADO"].includes(s.estado))
@@ -385,8 +375,8 @@ export default function DashboardClient({
       </div>
 
       {/* Órdenes de trabajo por estado */}
-      <div className="bg-white rounded-2xl border border-gray-200 p-5">
-        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+      <div>
+        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
           <h2 className="text-sm font-semibold text-gray-700" style={{ fontFamily: "'Syne', sans-serif" }}>
             Órdenes de trabajo por estado
           </h2>
@@ -396,21 +386,23 @@ export default function DashboardClient({
             <span className="text-amber-600 font-semibold">{otPendientes} pendientes</span>
           </div>
         </div>
-        {otTotal === 0 ? (
-          <div className="h-40 flex items-center justify-center text-sm text-gray-400">Sin órdenes de trabajo</div>
-        ) : (
-          <ResponsiveContainer width="100%" height={Math.max(160, otData.length * 46)}>
-            <BarChart data={otData} layout="vertical" margin={{ left: 8, right: 24 }} barSize={22}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" horizontal={false} />
-              <XAxis type="number" tick={{ fontSize: 11, fill: "#94A3B8" }} axisLine={false} tickLine={false} allowDecimals={false} />
-              <YAxis type="category" dataKey="estado" width={82} tick={{ fontSize: 12, fill: "#475569" }} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={{ borderRadius: 8, fontSize: 12, border: "1px solid #E2E8F0" }} formatter={(v: any) => [`${v} OT`, "Cantidad"]} cursor={{ fill: "#F8FAFC" }} />
-              <Bar dataKey="cantidad" radius={[0, 4, 4, 0]}>
-                {otData.map((d) => <Cell key={d.estado} fill={d.color} />)}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        )}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+          {otStats.map((s) => {
+            const meta = OT_ESTADO_META[s.estado] ?? { label: s.estado, color: "#94A3B8" };
+            const pct = otTotal > 0 ? Math.round((s.count / otTotal) * 100) : 0;
+            return (
+              <div key={s.estado} className="bg-white rounded-xl border border-gray-200 p-4 relative overflow-hidden">
+                <div className="absolute top-0 left-0 right-0 h-1" style={{ background: meta.color }} />
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: meta.color }} />
+                  <span className="text-xs font-medium text-gray-500 truncate">{meta.label}</span>
+                </div>
+                <div className="text-3xl font-bold text-gray-900" style={{ fontFamily: "'Syne', sans-serif" }}>{s.count}</div>
+                <div className="text-xs text-gray-400 mt-0.5">{pct}% del total</div>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       {/* Execution trend */}
