@@ -14,22 +14,25 @@ export default function ImprimirClient({ plan, items }: { plan: any; items: any[
   }, []);
 
   async function savePDF() {
-    if (!contentRef.current) return;
+    const el = contentRef.current;
+    if (!el) return;
     setGenerating(true);
+    el.classList.add("pdf-exporting");
     try {
       const html2pdf = (await import("html2pdf.js")).default;
       await html2pdf()
         .set({
-          margin: [8, 10, 8, 10],
+          margin: [10, 10, 10, 10],
           filename: `OT_Plan_${plan.fecha}.pdf`,
           image: { type: "jpeg", quality: 0.98 },
           html2canvas: { scale: 2, useCORS: true, letterRendering: true },
           jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
           pagebreak: { mode: ["css"], before: ".pdf-page-break" },
         } as any)
-        .from(contentRef.current)
+        .from(el)
         .save();
     } finally {
+      el.classList.remove("pdf-exporting");
       setGenerating(false);
     }
   }
@@ -79,12 +82,13 @@ export default function ImprimirClient({ plan, items }: { plan: any; items: any[
         }
         body { background: #f1f5f9; font-family: Arial, Helvetica, sans-serif; }
 
-        /* A4 = 297mm tall, @page margin 10mm top+bottom → 277mm usable.
-           Usamos 270mm para dejar holgura y evitar que redondeos empujen
-           la última fila a una 2da página. */
+        /* A4 = 210×297mm. Con margen 10mm en los 4 lados el área útil es
+           190×277mm. La .ot-page usa ese ancho (190mm) para que html2pdf la
+           capture a escala 1:1, y 275mm de alto (2mm de holgura) para que no
+           se desborde a una 2da página. */
         .ot-page {
-          width: 182mm;
-          height: 270mm;
+          width: 190mm;
+          height: 275mm;
           margin: 0 auto 16mm;
           background: white;
           border: 1px solid #ccc;
@@ -95,6 +99,9 @@ export default function ImprimirClient({ plan, items }: { plan: any; items: any[
         @media print {
           .ot-page { width: 100%; height: 270mm; margin: 0; border: none; }
         }
+        /* Durante la exportación a PDF: sin margen entre OTs (el page-break se
+           encarga del salto) para no generar hojas casi en blanco. */
+        .pdf-exporting .ot-page { margin: 0 !important; }
 
         .ot-table {
           width: 100%;
@@ -148,7 +155,8 @@ export default function ImprimirClient({ plan, items }: { plan: any; items: any[
         .cell-firma   { width: 100px; flex-shrink: 0; }
       `}</style>
 
-      <div className="print-content py-8 px-4" ref={contentRef}>
+      <div className="print-content py-8 px-4">
+        <div ref={contentRef} className="pdf-root">
         {items.map((item, idx) => {
           const assignee = item.assigned_user?.full_name ?? item.assigned_name ?? "";
           const fechaEjec = item.fecha_ejecucion
@@ -267,6 +275,7 @@ export default function ImprimirClient({ plan, items }: { plan: any; items: any[
             </div>
           );
         })}
+        </div>
       </div>
     </>
   );
