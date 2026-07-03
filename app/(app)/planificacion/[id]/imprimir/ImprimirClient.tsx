@@ -84,11 +84,11 @@ export default function ImprimirClient({ plan, items }: { plan: any; items: any[
 
         /* A4 = 210×297mm. Con margen 10mm en los 4 lados el área útil es
            190×277mm. La .ot-page usa ese ancho (190mm) para que html2pdf la
-           capture a escala 1:1, y 275mm de alto (2mm de holgura) para que no
-           se desborde a una 2da página. */
+           capture a escala 1:1, y 268mm de alto (9mm de holgura) para que no
+           quede una tira sobrante ("sliver") en una 2da página. */
         .ot-page {
           width: 190mm;
-          height: 275mm;
+          height: 268mm;
           margin: 0 auto 16mm;
           background: white;
           border: 1px solid #ccc;
