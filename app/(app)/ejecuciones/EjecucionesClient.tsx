@@ -198,7 +198,7 @@ export default function EjecucionesClient({ schedules, executions, currentUserId
         {canExecute && (
           <button
             onClick={() => { setForm({ ...EMPTY_FORM }); setChecklist(null); setPhotos([]); setPhotoPreview([]); setShowForm(true); setError(""); }}
-            className="rounded-lg bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+            className="btn-primary"
           >
             + Registrar
           </button>
@@ -405,7 +405,7 @@ export default function EjecucionesClient({ schedules, executions, currentUserId
 
             <div className="flex gap-2 pt-1">
               <button onClick={save} disabled={saving || uploadingPhotos}
-                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors">
+                className="btn-primary disabled:opacity-50">
                 {uploadingPhotos ? "Subiendo fotos..." : saving ? "Guardando..." : online ? "Guardar" : "Guardar offline"}
               </button>
               <button onClick={() => setShowForm(false)}

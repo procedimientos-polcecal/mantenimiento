@@ -134,7 +134,7 @@ export default function PlanificacionClient({ plans, canEdit }: { plans: any[]; 
               {error && <p className="text-sm text-red-600">{error}</p>}
               <div className="flex gap-2 pt-1">
                 <button type="submit" disabled={saving}
-                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors">
+                  className="btn-primary disabled:opacity-50">
                   {saving ? "Creando..." : "Crear plan"}
                 </button>
                 <button type="button" onClick={() => setShowNew(false)}

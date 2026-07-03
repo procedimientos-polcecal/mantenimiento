@@ -203,7 +203,7 @@ export default function NuevaOTModal({ sectors, equipment, onClose, onCreated }:
 
           <div className="flex gap-2 pt-1 border-t border-gray-100">
             <button type="submit" disabled={saving}
-              className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors">
+              className="btn-primary disabled:opacity-50">
               {saving ? "Guardando..." : "Crear OT"}
             </button>
             <button type="button" onClick={onClose}

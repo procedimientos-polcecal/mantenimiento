@@ -219,7 +219,7 @@ export default function MantenimientosClient({ schedules, equipment, users, canE
           {canEdit && (
             <button
               onClick={openNew}
-              className="rounded-lg bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+              className="btn-primary"
             >
               + Nuevo
             </button>
@@ -409,7 +409,7 @@ export default function MantenimientosClient({ schedules, equipment, users, canE
               <button
                 onClick={save}
                 disabled={saving}
-                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                className="btn-primary disabled:opacity-50"
               >
                 {saving ? "Guardando..." : "Guardar"}
               </button>

@@ -112,7 +112,7 @@ export default function PlanDetalle({ plan, pendingOTs, appUsers, sectors, canEd
           )}
           {canEdit && (
             <button onClick={() => setShowAddOT(true)}
-              className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors">
+              className="btn-primary">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
@@ -308,7 +308,7 @@ function EditItemModal({ item, appUsers, onSave, onClose }: {
           </div>
           <div className="flex gap-2 pt-1">
             <button type="submit" disabled={saving}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors">
+              className="btn-primary disabled:opacity-50">
               {saving ? "Guardando..." : "Guardar"}
             </button>
             <button type="button" onClick={onClose}

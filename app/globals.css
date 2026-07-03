@@ -55,6 +55,7 @@ html, body {
 h1, h2, h3, h4, h5, h6 {
   font-family: 'Syne', sans-serif;
   font-weight: 700;
+  text-wrap: balance;
 }
 
 code, .mono {
@@ -138,6 +139,39 @@ code, .mono {
   border: 1px solid var(--border);
   border-radius: 12px;
   box-shadow: var(--shadow-sm);
+}
+
+/* ─── Page header ─── */
+.page-header {
+  font-family: 'Syne', sans-serif;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.page-subheader {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* ─── Section title ─── */
+.section-title {
+  font-family: 'Syne', sans-serif;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* ─── Empty state ─── */
+.empty-state {
+  border-radius: 12px;
+  border: 1.5px dashed var(--border);
+  padding: 48px 24px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.875rem;
 }
 
 /* ─── Badge ─── */
@@ -242,6 +276,24 @@ code, .mono {
 .fade-up-2 { animation-delay: .1s; }
 .fade-up-3 { animation-delay: .15s; }
 .fade-up-4 { animation-delay: .2s; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    transition-duration: .01ms !important;
+  }
+}
+
+/* ─── Focus visible (accessibility) ─── */
+:focus-visible {
+  outline: 2px solid var(--orange);
+  outline-offset: 2px;
+}
+button:focus-visible, a:focus-visible {
+  outline: 2px solid var(--orange);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
 
 @keyframes pulse-dot {
   0%, 100% { opacity: 1; }

@@ -270,7 +270,7 @@ export default function EquipoDetalle({ equipo, sectors, historial, canEdit, use
 
           <div className="flex gap-2 pt-1">
             <button onClick={save} disabled={saving}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors">
+              className="btn-primary disabled:opacity-50">
               {saving ? "Guardando..." : "Guardar"}
             </button>
             <button onClick={() => { setEditing(false); setError(""); }}
@@ -412,7 +412,7 @@ export default function EquipoDetalle({ equipo, sectors, historial, canEdit, use
               <button
                 onClick={saveStatus}
                 disabled={statusSaving || newStatus === equipo.status}
-                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                className="btn-primary disabled:opacity-50"
               >
                 {statusSaving ? "Guardando..." : "Confirmar"}
               </button>
