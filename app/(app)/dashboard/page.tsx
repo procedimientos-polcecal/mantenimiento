@@ -47,6 +47,15 @@ export default async function DashboardPage() {
       .limit(60),
   ]);
 
+  // ── Conteo de OTs por estado (count queries, sin traer todas las filas) ──────
+  const OT_ESTADOS = ["POR_HACER", "EN_PROCESO", "ATRASADO", "REALIZADO", "SUSPENDIDA"];
+  const otCounts = await Promise.all(
+    OT_ESTADOS.map((e) =>
+      supabase.from("work_orders").select("id", { count: "exact", head: true }).eq("estado", e)
+    )
+  );
+  const otStats = OT_ESTADOS.map((estado, i) => ({ estado, count: otCounts[i].count ?? 0 }));
+
   const canEdit = ["admin_sistema", "administrador"].includes(appUser?.role ?? "");
 
   return (
@@ -59,6 +68,7 @@ export default async function DashboardPage() {
       sectors={sectors ?? []}
       sectorStatusLog={sectorStatusLog ?? []}
       recentExecutions={recentExecutions ?? []}
+      otStats={otStats}
       canEdit={canEdit}
     />
   );

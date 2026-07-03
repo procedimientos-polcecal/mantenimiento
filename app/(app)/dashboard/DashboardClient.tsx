@@ -39,11 +39,19 @@ const PLANT_COLORS: Record<string, string> = {
   POLYSAN: "#F59E0B", POLCECAL: "#22C55E", AMBOS: "#3B82F6",
 };
 
+const OT_ESTADO_META: Record<string, { label: string; color: string }> = {
+  POR_HACER:  { label: "Por hacer",  color: "#94A3B8" },
+  EN_PROCESO: { label: "En proceso", color: "#3B82F6" },
+  ATRASADO:   { label: "Atrasado",   color: "#EF4444" },
+  REALIZADO:  { label: "Realizado",  color: "#22C55E" },
+  SUSPENDIDA: { label: "Suspendida", color: "#F59E0B" },
+};
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function DashboardClient({
   appUser, equipment, upcoming, overdue,
-  plants, sectors, sectorStatusLog, recentExecutions, canEdit,
+  plants, sectors, sectorStatusLog, recentExecutions, otStats, canEdit,
 }: {
   appUser: any;
   equipment: any[];
@@ -54,6 +62,7 @@ export default function DashboardClient({
   plantStatusLog?: any[];   // kept for compat, unused
   sectorStatusLog: any[];
   recentExecutions: any[];
+  otStats: { estado: string; count: number }[];
   canEdit: boolean;
 }) {
   const router = useRouter();
@@ -138,6 +147,24 @@ export default function DashboardClient({
     }
     return Object.entries(weeks).slice(-8).map(([semana, cantidad]) => ({ semana, cantidad }));
   }, [recentExecutions]);
+
+  // OTs por estado (no se filtra por planta/sector: es global)
+  const otData = useMemo(() =>
+    otStats
+      .map((s) => ({
+        estado: OT_ESTADO_META[s.estado]?.label ?? s.estado,
+        cantidad: s.count,
+        color: OT_ESTADO_META[s.estado]?.color ?? "#94A3B8",
+      }))
+      .filter((d) => d.cantidad > 0),
+    [otStats]
+  );
+  const otTotal = useMemo(() => otStats.reduce((a, s) => a + s.count, 0), [otStats]);
+  const otPendientes = useMemo(() =>
+    otStats.filter((s) => ["POR_HACER", "EN_PROCESO", "ATRASADO"].includes(s.estado))
+      .reduce((a, s) => a + s.count, 0),
+    [otStats]
+  );
 
   const total = filteredEquipment.length;
   const operativos = filteredEquipment.filter((e) => e.status === "OPERATIVO").length;
@@ -355,6 +382,35 @@ export default function DashboardClient({
             </BarChart>
           </ResponsiveContainer>
         </div>
+      </div>
+
+      {/* Órdenes de trabajo por estado */}
+      <div className="bg-white rounded-2xl border border-gray-200 p-5">
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+          <h2 className="text-sm font-semibold text-gray-700" style={{ fontFamily: "'Syne', sans-serif" }}>
+            Órdenes de trabajo por estado
+          </h2>
+          <div className="flex items-center gap-2 text-xs">
+            <span className="text-gray-400">Total: <span className="font-semibold text-gray-700">{otTotal}</span></span>
+            <span className="text-gray-200">·</span>
+            <span className="text-amber-600 font-semibold">{otPendientes} pendientes</span>
+          </div>
+        </div>
+        {otTotal === 0 ? (
+          <div className="h-40 flex items-center justify-center text-sm text-gray-400">Sin órdenes de trabajo</div>
+        ) : (
+          <ResponsiveContainer width="100%" height={Math.max(160, otData.length * 46)}>
+            <BarChart data={otData} layout="vertical" margin={{ left: 8, right: 24 }} barSize={22}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" horizontal={false} />
+              <XAxis type="number" tick={{ fontSize: 11, fill: "#94A3B8" }} axisLine={false} tickLine={false} allowDecimals={false} />
+              <YAxis type="category" dataKey="estado" width={82} tick={{ fontSize: 12, fill: "#475569" }} axisLine={false} tickLine={false} />
+              <Tooltip contentStyle={{ borderRadius: 8, fontSize: 12, border: "1px solid #E2E8F0" }} formatter={(v: any) => [`${v} OT`, "Cantidad"]} cursor={{ fill: "#F8FAFC" }} />
+              <Bar dataKey="cantidad" radius={[0, 4, 4, 0]}>
+                {otData.map((d) => <Cell key={d.estado} fill={d.color} />)}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        )}
       </div>
 
       {/* Execution trend */}
