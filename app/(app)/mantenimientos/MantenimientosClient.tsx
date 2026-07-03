@@ -33,6 +33,13 @@ const STATUS_COLORS: Record<string, string> = {
   cancelled: "bg-red-100 text-red-700",
 };
 
+const STATUS_LABEL: Record<string, string> = {
+  active:    "Activo",
+  paused:    "Pausado",
+  completed: "Completado",
+  cancelled: "Cancelado",
+};
+
 const EMPTY_FORM = {
   equipment_id:    "",
   maintenance_type:"Inspeccion",
@@ -270,6 +277,23 @@ export default function MantenimientosClient({ schedules, equipment, users, link
     router.refresh();
   }
 
+  async function deleteSchedule(s: any) {
+    if (!confirm(`¿Eliminar el mantenimiento de ${s.equipment?.code ?? ""}? Esta acción no se puede deshacer.`)) return;
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("maintenance_schedules")
+      .delete()
+      .eq("id", s.id);
+    if (error) {
+      const fk = error.code === "23503" || /foreign key|violates/i.test(error.message);
+      alert(fk
+        ? "No se puede eliminar: este mantenimiento tiene ejecuciones registradas en su historial. Pausalo o cancelalo en su lugar."
+        : "No se pudo eliminar: " + error.message);
+      return;
+    }
+    router.refresh();
+  }
+
   const today = new Date().toISOString().split("T")[0];
 
   const filtered = schedules.filter((s) =>
@@ -356,7 +380,7 @@ export default function MantenimientosClient({ schedules, equipment, users, link
                       {s.next_date ? new Date(s.next_date + "T00:00:00").toLocaleDateString("es-AR") : "—"}
                     </div>
                     <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium mt-0.5 ${STATUS_COLORS[s.status] ?? ""}`}>
-                      {s.status}
+                      {STATUS_LABEL[s.status] ?? s.status}
                     </span>
                   </div>
                   {canEdit && (
@@ -372,6 +396,12 @@ export default function MantenimientosClient({ schedules, equipment, users, link
                         className="rounded px-2 py-1 text-xs text-gray-500 hover:bg-gray-100 transition-colors"
                       >
                         {s.status === "active" ? "Pausar" : "Activar"}
+                      </button>
+                      <button
+                        onClick={() => deleteSchedule(s)}
+                        className="rounded px-2 py-1 text-xs text-red-500 hover:bg-red-50 transition-colors"
+                      >
+                        Eliminar
                       </button>
                     </div>
                   )}
