@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
@@ -12,6 +12,31 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [mode, setMode] = useState<"login" | "forgot">("login");
   const [resetSent, setResetSent] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+
+  // Mostrar errores devueltos por el callback de OAuth (?error=...)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const err = params.get("error");
+    if (err === "domain") setError("Solo se permite el ingreso con cuentas @polcecal.com.");
+    else if (err === "inactive") setError("Tu usuario está desactivado. Contactá al administrador.");
+    else if (err === "oauth") setError("No se pudo completar el ingreso con Google. Intentá de nuevo.");
+  }, []);
+
+  async function handleGoogle() {
+    setGoogleLoading(true);
+    setError("");
+    const supabase = createClient();
+    const { error: err } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+        queryParams: { hd: "polcecal.com", prompt: "select_account" },
+      },
+    });
+    if (err) { setError(err.message); setGoogleLoading(false); }
+    // Si no hay error, el navegador redirige a Google.
+  }
 
   async function handleForgot(e: React.FormEvent) {
     e.preventDefault();
@@ -115,6 +140,28 @@ export default function LoginPage() {
           </div>
 
           {mode === "login" ? (
+            <>
+            <button type="button" onClick={handleGoogle} disabled={googleLoading}
+              style={{
+                width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
+                padding: "12px", borderRadius: 8, border: "1.5px solid #E2E8F0", background: "#fff",
+                fontSize: 14, fontWeight: 600, color: "#0F172A", cursor: "pointer", marginBottom: 16,
+              }}>
+              <svg width="18" height="18" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/>
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0012 23z"/>
+                <path fill="#FBBC05" d="M5.84 14.1a6.6 6.6 0 010-4.2V7.06H2.18a11 11 0 000 9.88l3.66-2.84z"/>
+                <path fill="#EA4335" d="M12 4.75c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 1.46 14.97.5 12 .5A11 11 0 002.18 7.06l3.66 2.84C6.71 7.3 9.14 4.75 12 4.75z"/>
+              </svg>
+              {googleLoading ? "Redirigiendo..." : "Continuar con Google"}
+            </button>
+
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+              <div style={{ flex: 1, height: 1, background: "#E2E8F0" }} />
+              <span style={{ fontSize: 12, color: "#94A3B8" }}>o con tu email</span>
+              <div style={{ flex: 1, height: 1, background: "#E2E8F0" }} />
+            </div>
+
             <form onSubmit={handleLogin} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               <div>
                 <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#64748B", marginBottom: 6, letterSpacing: ".08em", textTransform: "uppercase" }}>
@@ -148,6 +195,7 @@ export default function LoginPage() {
                 ¿Olvidaste tu contraseña?
               </button>
             </form>
+            </>
           ) : resetSent ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               <div style={{ background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 8, padding: "14px", fontSize: 14, color: "#15803D" }}>
