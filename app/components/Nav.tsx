@@ -33,7 +33,7 @@ export default function Nav() {
     <>
       {/* Mobile topbar */}
       <div className="mobile-topbar">
-        <PPLogo width={56} />
+        <PPLogo width={40} />
         <button onClick={() => setOpen(true)} style={{ color: "#94A3B8", background: "none", border: "none", cursor: "pointer", padding: 4 }}>
           <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
             <path d="M4 6h16M4 12h16M4 18h16" strokeLinecap="round"/>
