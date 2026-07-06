@@ -175,7 +175,7 @@ export default function OrdenesClient({
           ))}
           <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }}
             placeholder="Buscar equipo, sector, descripción..."
-            className="ml-auto rounded-lg border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 w-60" />
+            className="w-full sm:w-60 sm:ml-auto rounded-lg border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100" />
         </div>
       )}
 

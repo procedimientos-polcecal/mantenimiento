@@ -50,7 +50,16 @@ html, body {
   background: var(--bg);
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
+  /* Evita el scroll horizontal por elementos que se pasan del ancho */
+  max-width: 100%;
+  overflow-x: hidden;
 }
+
+/* Que imágenes y multimedia nunca fuercen ancho extra */
+img, svg, video, canvas { max-width: 100%; }
+
+/* Palabras/URLs largas no rompen el layout */
+p, h1, h2, h3, h4, h5, h6, span, a, td, th, li { overflow-wrap: break-word; }
 
 h1, h2, h3, h4, h5, h6 {
   font-family: 'Syne', sans-serif;
@@ -242,10 +251,12 @@ code, .mono {
 }
 .main-content {
   flex: 1;
+  min-width: 0;          /* permite encoger por debajo del contenido (evita overflow) */
   margin-left: 240px;
   min-height: 100vh;
   background: var(--bg);
 }
+.app-shell { max-width: 100%; overflow-x: hidden; }
 
 @media (max-width: 768px) {
   .sidebar { transform: translateX(-100%); }
