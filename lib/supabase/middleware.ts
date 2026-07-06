@@ -25,8 +25,10 @@ export async function updateSession(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser()
 
-  const isAuthPage = request.nextUrl.pathname.startsWith('/login')
-  const isPublicPath = request.nextUrl.pathname === '/login'
+  const path = request.nextUrl.pathname
+  const isAuthPage = path.startsWith('/login')
+  // Rutas públicas: login y el flujo de recuperación de contraseña
+  const isPublicPath = path === '/login' || path.startsWith('/reset-password')
 
   if (!user && !isPublicPath) {
     const url = request.nextUrl.clone()
@@ -34,6 +36,7 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
+  // No redirigir desde /reset-password aunque haya sesión (recovery crea una)
   if (user && isAuthPage) {
     const url = request.nextUrl.clone()
     url.pathname = '/dashboard'

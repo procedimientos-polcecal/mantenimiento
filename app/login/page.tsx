@@ -10,6 +10,21 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [mode, setMode] = useState<"login" | "forgot">("login");
+  const [resetSent, setResetSent] = useState(false);
+
+  async function handleForgot(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+    const supabase = createClient();
+    const { error: err } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    setLoading(false);
+    if (err) { setError(err.message); return; }
+    setResetSent(true);
+  }
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -90,38 +105,86 @@ export default function LoginPage() {
         <div style={{ width: "100%", maxWidth: 380 }}>
           <div style={{ marginBottom: 40 }}>
             <h2 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 26, color: "#0F172A", marginBottom: 8 }}>
-              Bienvenido
+              {mode === "login" ? "Bienvenido" : "Recuperar contraseña"}
             </h2>
-            <p style={{ color: "#64748B", fontSize: 14 }}>Ingresá con tu cuenta para continuar.</p>
+            <p style={{ color: "#64748B", fontSize: 14 }}>
+              {mode === "login"
+                ? "Ingresá con tu cuenta para continuar."
+                : "Te enviaremos un email con un enlace para restablecer tu contraseña."}
+            </p>
           </div>
 
-          <form onSubmit={handleLogin} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <div>
-              <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#64748B", marginBottom: 6, letterSpacing: ".08em", textTransform: "uppercase" }}>
-                Email
-              </label>
-              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
-                required placeholder="usuario@empresa.com" className="input" />
-            </div>
-            <div>
-              <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#64748B", marginBottom: 6, letterSpacing: ".08em", textTransform: "uppercase" }}>
-                Contraseña
-              </label>
-              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)}
-                required placeholder="••••••••" className="input" />
-            </div>
-
-            {error && (
-              <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 8, padding: "10px 14px", fontSize: 13, color: "#DC2626" }}>
-                {error}
+          {mode === "login" ? (
+            <form onSubmit={handleLogin} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <div>
+                <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#64748B", marginBottom: 6, letterSpacing: ".08em", textTransform: "uppercase" }}>
+                  Email
+                </label>
+                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+                  required placeholder="usuario@empresa.com" className="input" />
               </div>
-            )}
+              <div>
+                <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#64748B", marginBottom: 6, letterSpacing: ".08em", textTransform: "uppercase" }}>
+                  Contraseña
+                </label>
+                <input type="password" value={password} onChange={(e) => setPassword(e.target.value)}
+                  required placeholder="••••••••" className="input" />
+              </div>
 
-            <button type="submit" disabled={loading} className="btn-primary"
-              style={{ width: "100%", justifyContent: "center", padding: "13px", marginTop: 8, fontSize: 15 }}>
-              {loading ? "Ingresando..." : "Ingresar →"}
-            </button>
-          </form>
+              {error && (
+                <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 8, padding: "10px 14px", fontSize: 13, color: "#DC2626" }}>
+                  {error}
+                </div>
+              )}
+
+              <button type="submit" disabled={loading} className="btn-primary"
+                style={{ width: "100%", justifyContent: "center", padding: "13px", marginTop: 8, fontSize: 15 }}>
+                {loading ? "Ingresando..." : "Ingresar →"}
+              </button>
+
+              <button type="button"
+                onClick={() => { setMode("forgot"); setError(""); setResetSent(false); }}
+                style={{ background: "none", border: "none", color: "#64748B", fontSize: 13, cursor: "pointer", textAlign: "center", marginTop: 4 }}>
+                ¿Olvidaste tu contraseña?
+              </button>
+            </form>
+          ) : resetSent ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <div style={{ background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 8, padding: "14px", fontSize: 14, color: "#15803D" }}>
+                Si el email está registrado, te enviamos un enlace para restablecer la contraseña. Revisá tu bandeja de entrada (y el spam).
+              </div>
+              <button type="button" onClick={() => { setMode("login"); setResetSent(false); setError(""); }}
+                className="btn-primary" style={{ width: "100%", justifyContent: "center", padding: "13px", fontSize: 15 }}>
+                Volver al inicio
+              </button>
+            </div>
+          ) : (
+            <form onSubmit={handleForgot} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <div>
+                <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#64748B", marginBottom: 6, letterSpacing: ".08em", textTransform: "uppercase" }}>
+                  Email
+                </label>
+                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+                  required placeholder="usuario@empresa.com" className="input" />
+              </div>
+
+              {error && (
+                <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 8, padding: "10px 14px", fontSize: 13, color: "#DC2626" }}>
+                  {error}
+                </div>
+              )}
+
+              <button type="submit" disabled={loading} className="btn-primary"
+                style={{ width: "100%", justifyContent: "center", padding: "13px", marginTop: 8, fontSize: 15 }}>
+                {loading ? "Enviando..." : "Enviar enlace"}
+              </button>
+
+              <button type="button" onClick={() => { setMode("login"); setError(""); }}
+                style={{ background: "none", border: "none", color: "#64748B", fontSize: 13, cursor: "pointer", textAlign: "center", marginTop: 4 }}>
+                ← Volver al inicio
+              </button>
+            </form>
+          )}
         </div>
       </div>
 
