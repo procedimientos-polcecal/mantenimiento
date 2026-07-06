@@ -139,7 +139,7 @@ export default function UsuariosClient({ users }: { users: any[] }) {
 
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 space-y-4 shadow-xl">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 space-y-4 shadow-xl max-h-[90vh] overflow-y-auto">
             <h2 className="text-base font-bold text-gray-900">
               {editing ? "Editar usuario" : "Nuevo usuario"}
             </h2>
