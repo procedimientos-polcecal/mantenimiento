@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { useConfirm } from "@/app/components/ConfirmProvider";
+import InfoTip from "@/app/components/InfoTip";
 
 const TYPE_OPTIONS = [
   { value: "Lubricacion",       label: "Lubricación" },
@@ -68,6 +70,7 @@ export default function MantenimientosClient({ schedules, equipment, users, link
   currentUserId: string;
 }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState({ ...EMPTY_FORM });
@@ -92,6 +95,12 @@ export default function MantenimientosClient({ schedules, equipment, users, link
 
   // Crear una OT nueva a partir del mantenimiento
   async function crearOT(s: any) {
+    const ok = await confirm({
+      title: "Crear orden de trabajo",
+      message: `Se generará una nueva OT a partir de este mantenimiento (${s.equipment?.code ?? ""}) y se agregará también a la planilla de Google Sheets. ¿Continuar?`,
+      confirmText: "Crear OT",
+    });
+    if (!ok) return;
     setOtBusy(s.id); setOtMsg(null);
     const eq = s.equipment;
     const body = {
@@ -136,6 +145,13 @@ export default function MantenimientosClient({ schedules, equipment, users, link
 
   // Desvincular una OT
   async function desvincularOT(workOrderId: string) {
+    const ok = await confirm({
+      title: "Desvincular OT",
+      message: "La orden de trabajo dejará de estar asociada a este mantenimiento. La OT en sí no se elimina. ¿Continuar?",
+      confirmText: "Desvincular",
+      danger: true,
+    });
+    if (!ok) return;
     await fetch("/api/work-orders/link", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -268,8 +284,17 @@ export default function MantenimientosClient({ schedules, equipment, users, link
   }
 
   async function toggleStatus(s: any) {
+    const pausar = s.status === "active";
+    const ok = await confirm({
+      title: pausar ? "Pausar mantenimiento" : "Activar mantenimiento",
+      message: pausar
+        ? "Un mantenimiento pausado deja de generar alertas y no aparece como vencido. ¿Pausarlo?"
+        : "El mantenimiento volverá a estar activo y a generar alertas según su frecuencia. ¿Activarlo?",
+      confirmText: pausar ? "Pausar" : "Activar",
+    });
+    if (!ok) return;
     const supabase = createClient();
-    const newStatus = s.status === "active" ? "paused" : "active";
+    const newStatus = pausar ? "paused" : "active";
     await supabase
       .from("maintenance_schedules")
       .update({ status: newStatus })
@@ -278,7 +303,13 @@ export default function MantenimientosClient({ schedules, equipment, users, link
   }
 
   async function deleteSchedule(s: any) {
-    if (!confirm(`¿Eliminar el mantenimiento de ${s.equipment?.code ?? ""}? Esta acción no se puede deshacer.`)) return;
+    const ok = await confirm({
+      title: "Eliminar mantenimiento",
+      message: `Se eliminará el mantenimiento de ${s.equipment?.code ?? ""}. Esta acción no se puede deshacer.`,
+      confirmText: "Eliminar",
+      danger: true,
+    });
+    if (!ok) return;
     const supabase = createClient();
     const { error } = await supabase
       .from("maintenance_schedules")
@@ -303,7 +334,10 @@ export default function MantenimientosClient({ schedules, equipment, users, link
   return (
     <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-4">
       <div className="flex items-center justify-between gap-4">
-        <h1 className="text-xl font-bold text-gray-900">Mantenimientos</h1>
+        <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+          Mantenimientos
+          <InfoTip text="Acá programás los mantenimientos preventivos de cada equipo: qué tarea, cada cuánto se repite y quién la hace. El sistema avisa cuando se acercan o vencen, y desde cada uno podés generar o vincular una orden de trabajo (OT)." />
+        </h1>
         <div className="flex items-center gap-2">
           <select
             value={filterStatus}
@@ -425,7 +459,10 @@ export default function MantenimientosClient({ schedules, equipment, users, link
                   );
                 })}
                 {(otsBySchedule.get(s.id)?.length ?? 0) === 0 && (
-                  <span className="text-xs text-gray-400">Sin OT vinculada</span>
+                  <span className="text-xs text-gray-400 flex items-center gap-1">
+                    Sin OT vinculada
+                    <InfoTip text="Una orden de trabajo (OT) es el documento concreto del trabajo a realizar. 'Crear OT' genera una nueva a partir de este mantenimiento; 'Vincular OT' asocia una que ya existe en el sistema." />
+                  </span>
                 )}
                 {canEdit && (
                   <div className="ml-auto flex items-center gap-2">

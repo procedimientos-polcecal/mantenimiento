@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { useConfirm } from "@/app/components/ConfirmProvider";
 
 const links = [
   { href: "/dashboard",      label: "Dashboard",        icon: IconDash },
@@ -21,9 +22,16 @@ const links = [
 export default function Nav() {
   const pathname = usePathname();
   const router = useRouter();
+  const confirm = useConfirm();
   const [open, setOpen] = useState(false);
 
   async function signOut() {
+    const ok = await confirm({
+      title: "Cerrar sesión",
+      message: "Vas a salir del sistema y volver a la pantalla de inicio de sesión. ¿Continuar?",
+      confirmText: "Cerrar sesión",
+    });
+    if (!ok) return;
     const supabase = createClient();
     await supabase.auth.signOut();
     router.push("/login");

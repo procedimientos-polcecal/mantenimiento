@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { useConfirm } from "@/app/components/ConfirmProvider";
+import InfoTip from "@/app/components/InfoTip";
 
 const ROLES = [
   { value: "admin_sistema",  label: "Admin sistema" },
@@ -15,6 +17,7 @@ const EMPTY_FORM = { full_name: "", email: "", role: "operario", password: "" };
 
 export default function UsuariosClient({ users }: { users: any[] }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState({ ...EMPTY_FORM });
@@ -94,6 +97,16 @@ export default function UsuariosClient({ users }: { users: any[] }) {
   }
 
   async function toggleActive(u: any) {
+    const desactivar = u.is_active;
+    const ok = await confirm({
+      title: desactivar ? "Desactivar usuario" : "Activar usuario",
+      message: desactivar
+        ? `${u.full_name} no podrá volver a iniciar sesión hasta que se lo reactive. ¿Desactivarlo?`
+        : `${u.full_name} volverá a tener acceso al sistema. ¿Activarlo?`,
+      confirmText: desactivar ? "Desactivar" : "Activar",
+      danger: desactivar,
+    });
+    if (!ok) return;
     const supabase = createClient();
     await supabase
       .from("app_users")
@@ -105,7 +118,10 @@ export default function UsuariosClient({ users }: { users: any[] }) {
   return (
     <div className="p-4 md:p-6 max-w-4xl mx-auto space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-gray-900">Usuarios</h1>
+        <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+          Usuarios
+          <InfoTip text="Administrás las cuentas del sistema y su rol (permisos). Podés crear usuarios, editar sus datos o contraseña, y desactivarlos para quitarles el acceso sin borrarlos. El rol define qué puede ver y hacer cada persona." />
+        </h1>
         <button
           onClick={openNew}
           className="btn-primary"

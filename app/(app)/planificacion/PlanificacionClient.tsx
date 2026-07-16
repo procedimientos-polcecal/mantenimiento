@@ -3,9 +3,12 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useConfirm } from "@/app/components/ConfirmProvider";
+import InfoTip from "@/app/components/InfoTip";
 
 export default function PlanificacionClient({ plans, canEdit }: { plans: any[]; canEdit: boolean }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [showNew, setShowNew]   = useState(false);
   const [fecha, setFecha]       = useState(new Date().toISOString().slice(0, 10));
   const [titulo, setTitulo]     = useState("");
@@ -14,7 +17,13 @@ export default function PlanificacionClient({ plans, canEdit }: { plans: any[]; 
   const [deleting, setDeleting] = useState<string | null>(null);
 
   async function deletePlan(id: string) {
-    if (!confirm("¿Eliminar este plan?")) return;
+    const ok = await confirm({
+      title: "Eliminar plan",
+      message: "Se eliminará este plan de trabajo y todas sus órdenes asociadas al plan. Esta acción no se puede deshacer.",
+      confirmText: "Eliminar",
+      danger: true,
+    });
+    if (!ok) return;
     setDeleting(id);
     await fetch(`/api/planificacion/${id}`, { method: "DELETE" });
     setDeleting(null);
@@ -39,7 +48,10 @@ export default function PlanificacionClient({ plans, canEdit }: { plans: any[]; 
       {/* Header */}
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Planificación diaria</h1>
+          <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+            Planificación diaria
+            <InfoTip text="Armás el plan de trabajo de un día: elegís qué órdenes de trabajo se hacen, a quién se asignan, y después generás la hoja para imprimir o guardar en PDF. Cada plan agrupa varias OTs para una fecha." />
+          </h1>
           <p className="text-sm text-gray-400 mt-0.5">Programá el trabajo del día y generá las órdenes para imprimir</p>
         </div>
         {canEdit && (

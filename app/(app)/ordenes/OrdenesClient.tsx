@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useCallback } from "react";
 import NuevaOTModal from "./NuevaOTModal";
+import { useConfirm } from "@/app/components/ConfirmProvider";
+import InfoTip from "@/app/components/InfoTip";
 
 const ESTADOS = [
   { value: "",           label: "Todos",      color: "#64748B", bg: "#F8FAFC", dot: "#94A3B8" },
@@ -23,6 +25,7 @@ export default function OrdenesClient({
   sectors: any[];
   equipment: any[];
 }) {
+  const confirm = useConfirm();
   const [orders, setOrders]     = useState<any[]>([]);
   const [count, setCount]       = useState(0);
   const [loading, setLoading]   = useState(true);
@@ -80,6 +83,12 @@ export default function OrdenesClient({
   }, []);
 
   async function sync() {
+    const ok = await confirm({
+      title: "Sincronizar con Google Sheets",
+      message: "Se traerán las órdenes de trabajo desde la planilla de Google Sheets y se actualizarán las de la app. Los datos de la planilla tienen prioridad. ¿Sincronizar ahora?",
+      confirmText: "Sincronizar",
+    });
+    if (!ok) return;
     setSyncing(true); setSyncMsg("");
     const res  = await fetch("/api/work-orders/sync", { method: "POST" });
     const data = await res.json();
@@ -89,6 +98,13 @@ export default function OrdenesClient({
   }
 
   async function changeEstado(id: string, estado: string) {
+    const meta = estadoMeta(estado);
+    const ok = await confirm({
+      title: "Cambiar estado de la OT",
+      message: `La orden pasará al estado "${meta.label}". El cambio también se escribe en la planilla de Google Sheets. ¿Confirmás?`,
+      confirmText: "Cambiar estado",
+    });
+    if (!ok) return;
     await fetch("/api/work-orders", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -112,7 +128,10 @@ export default function OrdenesClient({
       {/* Header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Órdenes de Trabajo</h1>
+          <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+            Órdenes de Trabajo
+            <InfoTip text="Listado de todas las órdenes de trabajo (OT). Se sincronizan con la planilla de Google Sheets en ambos sentidos. Podés verlas como lista o como tablero Kanban por estado, filtrarlas, crear nuevas y cambiar su estado (Por hacer, En proceso, Atrasado, Realizado)." />
+          </h1>
           {lastSync && (
             <p className="text-xs text-gray-400 mt-0.5">
               Última sync: {new Date(lastSync).toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" })}

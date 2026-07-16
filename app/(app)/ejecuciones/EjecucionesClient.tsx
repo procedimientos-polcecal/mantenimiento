@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { db } from "@/lib/db";
+import InfoTip from "@/app/components/InfoTip";
 
 const STATUS_COLORS: Record<string, string> = {
   completado: "bg-green-100 text-green-800",
@@ -194,7 +195,10 @@ export default function EjecucionesClient({ schedules, executions, currentUserId
   return (
     <div className="p-4 md:p-6 max-w-4xl mx-auto space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-gray-900">Ejecuciones</h1>
+        <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+          Ejecuciones
+          <InfoTip text="Registrás que un mantenimiento fue realizado: quién lo hizo, cuándo, el resultado del checklist, observaciones y fotos. Al registrarlo, el sistema recalcula automáticamente la próxima fecha del mantenimiento." />
+        </h1>
         {canExecute && (
           <button
             onClick={() => { setForm({ ...EMPTY_FORM }); setChecklist(null); setPhotos([]); setPhotoPreview([]); setShowForm(true); setError(""); }}

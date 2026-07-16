@@ -3,6 +3,7 @@
 import { useState, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import * as XLSX from "xlsx";
+import InfoTip from "@/app/components/InfoTip";
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   OPERATIVO:          { label: "Operativo",        color: "bg-green-100 text-green-800" },
@@ -123,7 +124,10 @@ export default function EquiposClient({ plants, sectors, equipment, canEdit }: {
   return (
     <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-4">
       <div className="flex items-center justify-between gap-4 flex-wrap">
-        <h1 className="text-xl font-bold text-gray-900">Equipos</h1>
+        <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+          Equipos
+          <InfoTip text="Inventario de todos los equipos industriales de las plantas, con su estado, criticidad, sector y potencia. Podés buscarlos, filtrarlos, importarlos desde Excel y entrar a cada uno para ver su detalle e historial." />
+        </h1>
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-sm text-gray-500 mr-1">{filtered.length} de {equipment.length}</span>
 

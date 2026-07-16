@@ -6,6 +6,7 @@ import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend,
 } from "recharts";
+import InfoTip from "@/app/components/InfoTip";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -205,7 +206,10 @@ export default function DashboardClient({
       {/* Header */}
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-xl font-bold text-gray-900" style={{ fontFamily: "'Syne', sans-serif" }}>Dashboard</h1>
+          <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2" style={{ fontFamily: "'Syne', sans-serif" }}>
+            Dashboard
+            <InfoTip text="Vista general del estado de las plantas: equipos por estado y criticidad, mantenimientos vencidos y próximos, órdenes de trabajo por estado, y qué trabajos fueron correctivos/preventivos o propios/contratados. Usá los filtros de planta y sector para acotar." />
+          </h1>
           <p className="text-sm text-gray-400 mt-0.5">
             {appUser?.full_name ?? ""}
             <span className="mx-2 text-gray-200">·</span>

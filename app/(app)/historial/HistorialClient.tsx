@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import InfoTip from "@/app/components/InfoTip";
 
 const STATUS_COLORS: Record<string, string> = {
   completado: "bg-green-100 text-green-800",
@@ -60,7 +61,10 @@ export default function HistorialClient({ executions }: { executions: any[] }) {
     <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-4">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Historial</h1>
+          <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+            Historial
+            <InfoTip text="Registro completo de todos los mantenimientos ya ejecutados, con fecha, responsable, estado y observaciones. Podés filtrarlo y exportarlo a CSV para informes." />
+          </h1>
           <p className="text-sm text-gray-500">{filtered.length} registros</p>
         </div>
         <button
