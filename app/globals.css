@@ -258,6 +258,51 @@ code, .mono {
 }
 .app-shell { max-width: 100%; overflow-x: hidden; }
 
+/* ─── Ocultar barra lateral en escritorio ─── */
+.sidebar-show-btn { display: none; }
+.sidebar-hide-btn {
+  display: none;
+  position: absolute;
+  top: 16px; right: 12px;
+  background: transparent;
+  border: none;
+  color: #475569;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  transition: background .15s, color .15s;
+}
+.sidebar-hide-btn:hover { background: #131D2E; color: #94A3B8; }
+
+@media (min-width: 769px) {
+  /* Botón para ocultar visible dentro de la barra */
+  .sidebar-hide-btn { display: inline-flex; }
+
+  /* Cuando está colapsada: barra fuera de vista y contenido a todo el ancho */
+  html.sidebar-collapsed .sidebar { transform: translateX(-100%); }
+  /* margin-left deja lugar para el botón flotante que reabre la barra */
+  html.sidebar-collapsed .main-content { margin-left: 0; padding-left: 60px; }
+
+  /* Botón flotante para volver a mostrarla */
+  html.sidebar-collapsed .sidebar-show-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    position: fixed;
+    top: 14px; left: 14px;
+    z-index: 46;
+    width: 40px; height: 40px;
+    background: var(--sidebar-bg);
+    color: #94A3B8;
+    border: 1px solid var(--sidebar-border);
+    border-radius: 10px;
+    cursor: pointer;
+    box-shadow: var(--shadow);
+    transition: color .15s, background .15s;
+  }
+  html.sidebar-collapsed .sidebar-show-btn:hover { color: #F59E0B; background: #131D2E; }
+}
+
 @media (max-width: 768px) {
   .sidebar { transform: translateX(-100%); }
   .sidebar.open { transform: translateX(0); }

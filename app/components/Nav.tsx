@@ -5,7 +5,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useConfirm } from "@/app/components/ConfirmProvider";
 
 const links = [
@@ -23,7 +23,19 @@ export default function Nav() {
   const pathname = usePathname();
   const router = useRouter();
   const confirm = useConfirm();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(false);           // menú móvil abierto
+  const [collapsed, setCollapsed] = useState(false); // barra oculta en escritorio
+
+  // Restaurar preferencia guardada
+  useEffect(() => {
+    setCollapsed(localStorage.getItem("sidebarCollapsed") === "1");
+  }, []);
+
+  // Reflejar el estado en <html> para que el CSS expanda el contenido
+  useEffect(() => {
+    document.documentElement.classList.toggle("sidebar-collapsed", collapsed);
+    localStorage.setItem("sidebarCollapsed", collapsed ? "1" : "0");
+  }, [collapsed]);
 
   async function signOut() {
     const ok = await confirm({
@@ -39,6 +51,18 @@ export default function Nav() {
 
   return (
     <>
+      {/* Botón flotante para mostrar la barra (escritorio, cuando está oculta) */}
+      <button
+        onClick={() => setCollapsed(false)}
+        className="sidebar-show-btn"
+        title="Mostrar menú"
+        aria-label="Mostrar menú"
+      >
+        <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+          <path d="M4 6h16M4 12h16M4 18h16" strokeLinecap="round" />
+        </svg>
+      </button>
+
       {/* Mobile topbar */}
       <div className="mobile-topbar">
         <PPLogo width={40} />
@@ -60,7 +84,18 @@ export default function Nav() {
       {/* Sidebar */}
       <aside className={`sidebar${open ? " open" : ""}`}>
         {/* Brand */}
-        <div style={{ padding: "20px 16px 16px", borderBottom: "1px solid #1E2A3A" }}>
+        <div style={{ padding: "20px 16px 16px", borderBottom: "1px solid #1E2A3A", position: "relative" }}>
+          {/* Ocultar barra (escritorio) */}
+          <button
+            onClick={() => setCollapsed(true)}
+            className="sidebar-hide-btn"
+            title="Ocultar menú"
+            aria-label="Ocultar menú"
+          >
+            <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path d="M11 19l-7-7 7-7M18 19l-7-7 7-7" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
           <PPLogo width={160} />
           <div style={{ marginTop: 6, fontSize: 10, color: "#475569", fontFamily: "'DM Sans', sans-serif", letterSpacing: ".06em", textTransform: "uppercase", textAlign: "center" }}>
             Gestión de Mantenimiento
