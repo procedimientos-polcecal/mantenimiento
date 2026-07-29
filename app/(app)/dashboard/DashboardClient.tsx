@@ -58,13 +58,11 @@ const QUIEN_COLORS: Record<string, string> = {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function DashboardClient({
-  appUser, equipment, upcoming, overdue,
+  appUser, equipment,
   plants, sectors, sectorStatusLog, recentExecutions, otStats, tipoTally, quienTally, canEdit,
 }: {
   appUser: any;
   equipment: any[];
-  upcoming: any[];
-  overdue: any[];
   plants: any[];
   sectors: any[];
   plantStatusLog?: any[];   // kept for compat, unused
@@ -163,6 +161,10 @@ export default function DashboardClient({
   const otPendientes = useMemo(() =>
     otStats.filter((s) => ["POR_HACER", "EN_PROCESO", "ATRASADO"].includes(s.estado))
       .reduce((a, s) => a + s.count, 0),
+    [otStats]
+  );
+  const otAtrasadas = useMemo(() =>
+    otStats.find((s) => s.estado === "ATRASADO")?.count ?? 0,
     [otStats]
   );
 
@@ -325,10 +327,10 @@ export default function DashboardClient({
 
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <KpiCard label="Total equipos"    value={total}           accent="#0F172A" />
-        <KpiCard label="Operativos"       value={operativos}      accent="#22C55E" sub={`${pctOperativo}% del total`} />
-        <KpiCard label="Vencidos"         value={overdue.length}  accent={overdue.length > 0 ? "#EF4444" : "#22C55E"} />
-        <KpiCard label="Próximos 7 días"  value={upcoming.length} accent="#F59E0B" />
+        <KpiCard label="Total equipos"    value={total}         accent="#0F172A" />
+        <KpiCard label="Operativos"       value={operativos}    accent="#22C55E" sub={`${pctOperativo}% del total`} />
+        <KpiCard label="OTs atrasadas"    value={otAtrasadas}   accent={otAtrasadas > 0 ? "#EF4444" : "#22C55E"} />
+        <KpiCard label="OTs pendientes"   value={otPendientes}  accent="#F59E0B" />
       </div>
 
       {/* Charts */}
@@ -441,39 +443,6 @@ export default function DashboardClient({
           </ResponsiveContainer>
         </div>
       )}
-
-      {/* Overdue */}
-      {overdue.length > 0 && (
-        <section>
-          <div className="flex items-center gap-2 mb-3">
-            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-            <h2 className="text-xs font-semibold text-red-600 uppercase tracking-wider" style={{ fontFamily: "'Syne', sans-serif" }}>
-              Vencidos — {overdue.length}
-            </h2>
-          </div>
-          <div className="rounded-xl border border-red-100 overflow-hidden bg-white">
-            {overdue.map((s: any, i: number) => <ScheduleRow key={s.id} schedule={s} overdue last={i === overdue.length - 1} />)}
-          </div>
-        </section>
-      )}
-
-      {/* Upcoming */}
-      <section>
-        <div className="flex items-center gap-2 mb-3">
-          <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ fontFamily: "'Syne', sans-serif" }}>
-            Próximos 7 días — {upcoming.length}
-          </h2>
-        </div>
-        {upcoming.length > 0 ? (
-          <div className="rounded-xl border border-gray-200 overflow-hidden bg-white">
-            {upcoming.map((s: any, i: number) => <ScheduleRow key={s.id} schedule={s} last={i === upcoming.length - 1} />)}
-          </div>
-        ) : (
-          <div className="rounded-xl border border-dashed border-gray-200 py-8 text-center">
-            <p className="text-sm text-gray-400">Sin mantenimientos programados esta semana.</p>
-          </div>
-        )}
-      </section>
 
       {/* Sector status modal */}
       {statusModal && (
@@ -598,28 +567,6 @@ function KpiCard({ label, value, accent, sub }: { label: string; value: number; 
       <div className="text-3xl font-bold text-gray-900" style={{ fontFamily: "'Syne', sans-serif" }}>{value}</div>
       <div className="text-xs text-gray-500 mt-1">{label}</div>
       {sub && <div className="text-xs mt-0.5" style={{ color: accent }}>{sub}</div>}
-    </div>
-  );
-}
-
-function ScheduleRow({ schedule, overdue, last }: { schedule: any; overdue?: boolean; last?: boolean }) {
-  return (
-    <div className={`flex items-center justify-between gap-4 px-4 py-3 ${!last ? `border-b ${overdue ? "border-red-100" : "border-gray-100"}` : ""} ${overdue ? "bg-red-50" : "bg-white"}`}>
-      <div className="min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="font-mono text-xs text-gray-400 bg-gray-50 border border-gray-200 px-1.5 py-0.5 rounded">
-            {schedule.equipment?.code}
-          </span>
-          <span className="text-sm font-medium text-gray-900">{schedule.equipment?.name}</span>
-          <span className="text-xs text-gray-400">{schedule.maintenance_type}</span>
-        </div>
-        {schedule.assigned_user?.full_name && (
-          <p className="text-xs text-gray-400 mt-0.5">{schedule.assigned_user.full_name}</p>
-        )}
-      </div>
-      <div className={`text-sm font-semibold shrink-0 ${overdue ? "text-red-600" : "text-gray-700"}`}>
-        {schedule.next_date ? new Date(schedule.next_date + "T00:00:00").toLocaleDateString("es-AR") : "—"}
-      </div>
     </div>
   );
 }

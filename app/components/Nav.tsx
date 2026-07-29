@@ -11,7 +11,6 @@ import { useConfirm } from "@/app/components/ConfirmProvider";
 const links = [
   { href: "/dashboard",      label: "Dashboard",        icon: IconDash },
   { href: "/equipos",        label: "Equipos",          icon: IconEquip },
-  { href: "/mantenimientos", label: "Mantenimientos",   icon: IconMant },
   { href: "/avisos",         label: "Avisos",           icon: IconAviso },
   { href: "/ejecuciones",    label: "Ejecuciones",      icon: IconExec },
   { href: "/ordenes",        label: "Órdenes de Trabajo", icon: IconOT },

@@ -11,8 +11,6 @@ export default async function DashboardPage() {
   const [
     { data: appUser },
     { data: equipment },
-    { data: upcoming },
-    { data: overdue },
     { data: plants },
     { data: sectors },
     { data: sectorStatusLog },
@@ -22,19 +20,6 @@ export default async function DashboardPage() {
     supabase.from("equipment")
       .select("status, criticality, sectors(name, plants(name))")
       .eq("is_active", true),
-    supabase.from("maintenance_schedules")
-      .select("*, equipment(name, code), assigned_user:assigned_to(full_name)")
-      .eq("status", "active")
-      .lte("next_date", new Date(Date.now() + 7 * 86400000).toISOString().split("T")[0])
-      .gte("next_date", new Date().toISOString().split("T")[0])
-      .order("next_date", { ascending: true })
-      .limit(10),
-    supabase.from("maintenance_schedules")
-      .select("*, equipment(name, code), assigned_user:assigned_to(full_name)")
-      .eq("status", "active")
-      .lt("next_date", new Date().toISOString().split("T")[0])
-      .order("next_date", { ascending: true })
-      .limit(10),
     supabase.from("plants").select("id, name, status").order("name"),
     supabase.from("sectors").select("id, name, status, plants(name)").order("name"),
     supabase.from("sector_status_log")
@@ -87,8 +72,6 @@ export default async function DashboardPage() {
     <DashboardClient
       appUser={appUser}
       equipment={equipment ?? []}
-      upcoming={upcoming ?? []}
-      overdue={overdue ?? []}
       plants={plants ?? []}
       sectors={sectors ?? []}
       sectorStatusLog={sectorStatusLog ?? []}

@@ -59,7 +59,7 @@ export async function sendOverdueAlert(items: {
           <tbody>${rows}</tbody>
         </table>
         <div style="margin-top:20px;padding:12px;background:#fef3c7;border-radius:6px;font-size:13px;color:#92400e">
-          Accedé al sistema: <a href="${APP_URL}/mantenimientos" style="color:#1d4ed8">${APP_URL.replace(/^https?:\/\//, "")}</a>
+          Accedé al sistema: <a href="${APP_URL}/ordenes" style="color:#1d4ed8">${APP_URL.replace(/^https?:\/\//, "")}</a>
         </div>
       </div>
     </div>
