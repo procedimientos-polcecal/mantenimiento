@@ -14,15 +14,18 @@ export default async function EjecucionesPage() {
     .eq("id", user.id)
     .single();
 
-  const [{ data: schedules }, { data: executions }] = await Promise.all([
+  const [{ data: workOrders }, { data: executions }] = await Promise.all([
+    // OTs pendientes (no realizadas) sobre las que registrar una ejecución
     supabase
-      .from("maintenance_schedules")
-      .select("id, maintenance_type, schedule_type, next_date, description, estimated_hours, equipment(id, name, code, sectors(name, plants(name))), assigned_user:assigned_to(id, full_name)")
-      .eq("status", "active")
-      .order("next_date", { ascending: true }),
+      .from("work_orders")
+      .select("id, ot_number, descripcion, estado, equipo_raw, equipo_code, equipment_id, sector_raw")
+      .neq("estado", "REALIZADO")
+      .order("ot_number", { ascending: false })
+      .limit(100),
+    // Ejecuciones recientes (con OT o, si es vieja, con programado)
     supabase
       .from("maintenance_executions")
-      .select("*, schedule:schedule_id(maintenance_type, equipment(name, code)), executor:executed_by(full_name)")
+      .select("*, work_order:work_order_id(ot_number, descripcion, equipo_raw), schedule:schedule_id(maintenance_type, equipment(name, code)), executor:executed_by(full_name)")
       .order("executed_at", { ascending: false })
       .limit(50),
   ]);
@@ -31,7 +34,7 @@ export default async function EjecucionesPage() {
 
   return (
     <EjecucionesClient
-      schedules={schedules ?? []}
+      workOrders={workOrders ?? []}
       executions={executions ?? []}
       currentUserId={user.id}
       canExecute={canExecute}

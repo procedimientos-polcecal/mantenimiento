@@ -12,17 +12,23 @@ const STATUS_COLORS: Record<string, string> = {
   cancelado:  "bg-red-100 text-red-800",
 };
 
-const EMPTY_FORM = {
-  schedule_id:        "",
-  execution_status:   "completado",
-  executed_at:        new Date().toISOString().slice(0, 16),
-  duration_hours:     "",
-  observations:       "",
-  next_date_override: "",
+const OT_ESTADO_LABEL: Record<string, string> = {
+  POR_HACER:  "Por hacer",
+  EN_PROCESO: "En proceso",
+  ATRASADO:   "Atrasado",
+  SUSPENDIDA: "Suspendida",
 };
 
-export default function EjecucionesClient({ schedules, executions, currentUserId, canExecute }: {
-  schedules: any[];
+const EMPTY_FORM = {
+  work_order_id:    "",
+  execution_status: "completado",
+  executed_at:      new Date().toISOString().slice(0, 16),
+  duration_hours:   "",
+  observations:     "",
+};
+
+export default function EjecucionesClient({ workOrders, executions, currentUserId, canExecute }: {
+  workOrders: any[];
   executions: any[];
   currentUserId: string;
   canExecute: boolean;
@@ -35,11 +41,9 @@ export default function EjecucionesClient({ schedules, executions, currentUserId
   const [tab, setTab] = useState<"pendientes" | "recientes">("pendientes");
   const [online, setOnline] = useState(true);
 
-  // Checklist state
   const [checklist, setChecklist] = useState<any>(null);
   const [checklistResponses, setChecklistResponses] = useState<Record<string, any>>({});
 
-  // Photo state
   const [photos, setPhotos] = useState<File[]>([]);
   const [photoPreview, setPhotoPreview] = useState<string[]>([]);
   const [uploadingPhotos, setUploadingPhotos] = useState(false);
@@ -57,21 +61,21 @@ export default function EjecucionesClient({ schedules, executions, currentUserId
     setForm((f) => ({ ...f, [key]: value }));
   }
 
-  async function openFor(scheduleId: string) {
-    setForm({ ...EMPTY_FORM, schedule_id: scheduleId });
+  async function openFor(workOrderId: string) {
+    setForm({ ...EMPTY_FORM, work_order_id: workOrderId });
     setChecklistResponses({});
     setPhotos([]);
     setPhotoPreview([]);
     setError("");
 
-    // Load checklist for this equipment
-    const schedule = schedules.find((s) => s.id === scheduleId);
-    if (schedule?.equipment?.id) {
+    // Cargar checklist del equipo de la OT
+    const ot = workOrders.find((o) => o.id === workOrderId);
+    if (ot?.equipment_id) {
       const supabase = createClient();
       const { data } = await supabase
         .from("equipment_checklists")
         .select("*")
-        .eq("equipment_id", schedule.equipment.id)
+        .eq("equipment_id", ot.equipment_id)
         .eq("is_active", true)
         .order("created_at", { ascending: false })
         .limit(1)
@@ -99,17 +103,15 @@ export default function EjecucionesClient({ schedules, executions, currentUserId
     setPhotoPreview((p) => p.filter((_, i) => i !== idx));
   }
 
-  async function uploadPhotos(scheduleId: string): Promise<string[]> {
+  async function uploadPhotos(workOrderId: string): Promise<string[]> {
     if (photos.length === 0) return [];
     setUploadingPhotos(true);
     const supabase = createClient();
     const urls: string[] = [];
     for (const photo of photos) {
       const ext = photo.name.split(".").pop() ?? "jpg";
-      const path = `${currentUserId}/${scheduleId}/${Date.now()}.${ext}`;
-      const { error } = await supabase.storage
-        .from("execution-photos")
-        .upload(path, photo, { upsert: false });
+      const path = `${currentUserId}/${workOrderId}/${Date.now()}.${ext}`;
+      const { error } = await supabase.storage.from("execution-photos").upload(path, photo, { upsert: false });
       if (!error) {
         const { data } = supabase.storage.from("execution-photos").getPublicUrl(path);
         urls.push(data.publicUrl);
@@ -120,9 +122,8 @@ export default function EjecucionesClient({ schedules, executions, currentUserId
   }
 
   async function save() {
-    if (!form.schedule_id) { setError("Seleccioná un mantenimiento."); return; }
+    if (!form.work_order_id) { setError("Seleccioná una orden de trabajo."); return; }
 
-    // Validate required checklist items
     if (checklist?.items) {
       const missing = checklist.items.filter(
         (item: any) => item.required && (checklistResponses[item.id] === undefined || checklistResponses[item.id] === "")
@@ -135,10 +136,10 @@ export default function EjecucionesClient({ schedules, executions, currentUserId
 
     setSaving(true);
     setError("");
-    const schedule = schedules.find((s) => s.id === form.schedule_id);
+    const ot = workOrders.find((o) => o.id === form.work_order_id);
 
     const payload: any = {
-      schedule_id:        form.schedule_id,
+      work_order_id:      form.work_order_id,
       executed_by:        currentUserId,
       execution_status:   form.execution_status,
       executed_at:        form.executed_at,
@@ -146,14 +147,12 @@ export default function EjecucionesClient({ schedules, executions, currentUserId
       observations:       form.observations.trim() || null,
       checklist_snapshot: checklist ?? null,
       checklist_responses: checklist ? checklistResponses : null,
-      next_date_override: form.next_date_override || null,
-      equipment_code:     schedule?.equipment?.code,
-      equipment_name:     schedule?.equipment?.name,
-      maintenance_type:   schedule?.maintenance_type,
+      equipment_code:     ot?.equipo_code ?? null,
+      equipment_name:     ot?.equipo_raw ?? null,
+      ot_number:          ot?.ot_number ?? null,
     };
 
     if (!online) {
-      // Save offline to Dexie
       const photoBase64 = photoPreview.length > 0 ? photoPreview : [];
       await db.pending_executions.add({
         ...payload,
@@ -167,11 +166,9 @@ export default function EjecucionesClient({ schedules, executions, currentUserId
       return;
     }
 
-    // Upload photos first
-    const photoUrls = await uploadPhotos(form.schedule_id);
+    const photoUrls = await uploadPhotos(form.work_order_id);
     payload.photo_urls = photoUrls;
 
-    // Use API route
     const res = await fetch("/api/ejecuciones", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -190,14 +187,12 @@ export default function EjecucionesClient({ schedules, executions, currentUserId
     router.refresh();
   }
 
-  const today = new Date().toISOString().split("T")[0];
-
   return (
     <div className="p-4 md:p-6 max-w-4xl mx-auto space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
           Ejecuciones
-          <InfoTip text="Registrás que un mantenimiento fue realizado: quién lo hizo, cuándo, el resultado del checklist, observaciones y fotos. Al registrarlo, el sistema recalcula automáticamente la próxima fecha del mantenimiento." />
+          <InfoTip text="Registrás que una orden de trabajo (OT) fue realizada: quién la hizo, cuándo, el resultado del checklist, observaciones y fotos. Si la marcás como completada, la OT pasa a 'Realizado'." />
         </h1>
         {canExecute && (
           <button
@@ -222,68 +217,67 @@ export default function EjecucionesClient({ schedules, executions, currentUserId
 
       {tab === "pendientes" && (
         <div className="space-y-2">
-          {schedules.length === 0 && <p className="text-sm text-gray-400 py-8 text-center">Sin mantenimientos activos.</p>}
-          {schedules.map((s: any) => {
-            const overdue = s.next_date && s.next_date < today;
-            const soon = s.next_date && s.next_date >= today &&
-              s.next_date <= new Date(Date.now() + 7 * 86400000).toISOString().split("T")[0];
-            return (
-              <div key={s.id} className={`rounded-xl border bg-white p-4 flex items-start justify-between gap-4 ${overdue ? "border-red-200 bg-red-50" : "border-gray-200"}`}>
-                <div className="space-y-0.5 min-w-0">
-                  <p className="text-sm font-medium text-gray-900">{s.equipment?.code} — {s.equipment?.name}</p>
-                  <p className="text-xs text-gray-500">
-                    {s.maintenance_type} · {s.equipment?.sectors?.plants?.name} · {s.equipment?.sectors?.name}
-                    {s.assigned_user?.full_name && ` · ${s.assigned_user.full_name}`}
-                    {s.estimated_hours && ` · ${s.estimated_hours} h`}
-                  </p>
-                  {s.description && <p className="text-xs text-gray-400 mt-1">{s.description}</p>}
-                </div>
-                <div className="flex items-center gap-3 shrink-0">
-                  <div className={`text-xs font-semibold ${overdue ? "text-red-700" : soon ? "text-yellow-700" : "text-gray-600"}`}>
-                    {s.next_date ? new Date(s.next_date + "T00:00:00").toLocaleDateString("es-AR") : "—"}
-                  </div>
-                  {canExecute && (
-                    <button onClick={() => openFor(s.id)}
-                      className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700 transition-colors whitespace-nowrap">
-                      Registrar
-                    </button>
-                  )}
-                </div>
+          {workOrders.length === 0 && <p className="text-sm text-gray-400 py-8 text-center">Sin órdenes de trabajo pendientes.</p>}
+          {workOrders.map((o: any) => (
+            <div key={o.id} className={`rounded-xl border bg-white p-4 flex items-start justify-between gap-4 ${o.estado === "ATRASADO" ? "border-red-200 bg-red-50" : "border-gray-200"}`}>
+              <div className="space-y-0.5 min-w-0">
+                <p className="text-sm font-medium text-gray-900">
+                  <span className="font-mono text-xs text-gray-400 mr-1">#{o.ot_number}</span>
+                  {o.descripcion ?? "—"}
+                </p>
+                <p className="text-xs text-gray-500">
+                  {[o.equipo_raw, o.sector_raw].filter(Boolean).join(" · ")}
+                </p>
               </div>
-            );
-          })}
+              <div className="flex items-center gap-3 shrink-0">
+                <span className="text-xs font-semibold text-gray-600">{OT_ESTADO_LABEL[o.estado] ?? o.estado}</span>
+                {canExecute && (
+                  <button onClick={() => openFor(o.id)}
+                    className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700 transition-colors whitespace-nowrap">
+                    Registrar
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
       {tab === "recientes" && (
         <div className="rounded-xl border border-gray-200 bg-white divide-y divide-gray-100 overflow-hidden">
           {executions.length === 0 && <p className="text-sm text-gray-400 py-8 text-center">Sin ejecuciones registradas.</p>}
-          {executions.map((e: any) => (
-            <div key={e.id} className="px-4 py-3 flex items-start justify-between gap-4">
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-gray-900">{e.schedule?.equipment?.code} — {e.schedule?.equipment?.name}</p>
-                <p className="text-xs text-gray-500">
-                  {e.schedule?.maintenance_type} · {e.executor?.full_name}
-                  {e.duration_hours && ` · ${e.duration_hours} h`}
-                </p>
-                {e.observations && <p className="text-xs text-gray-400 mt-0.5 line-clamp-1">{e.observations}</p>}
-                {e.photo_urls?.length > 0 && (
-                  <div className="flex gap-1 mt-1">
-                    {e.photo_urls.map((url: string, i: number) => (
-                      <a key={i} href={url} target="_blank" rel="noreferrer"
-                        className="text-xs text-blue-500 underline">📷 Foto {i + 1}</a>
-                    ))}
-                  </div>
-                )}
+          {executions.map((e: any) => {
+            const titulo = e.work_order
+              ? `#${e.work_order.ot_number} — ${e.work_order.equipo_raw ?? e.work_order.descripcion ?? ""}`
+              : e.schedule
+                ? `${e.schedule?.equipment?.code} — ${e.schedule?.equipment?.name}`
+                : "—";
+            return (
+              <div key={e.id} className="px-4 py-3 flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-gray-900">{titulo}</p>
+                  <p className="text-xs text-gray-500">
+                    {e.executor?.full_name}
+                    {e.duration_hours && ` · ${e.duration_hours} h`}
+                  </p>
+                  {e.observations && <p className="text-xs text-gray-400 mt-0.5 line-clamp-1">{e.observations}</p>}
+                  {e.photo_urls?.length > 0 && (
+                    <div className="flex gap-1 mt-1">
+                      {e.photo_urls.map((url: string, i: number) => (
+                        <a key={i} href={url} target="_blank" rel="noreferrer" className="text-xs text-blue-500 underline">📷 Foto {i + 1}</a>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="shrink-0 text-right space-y-0.5">
+                  <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[e.execution_status] ?? ""}`}>
+                    {e.execution_status}
+                  </span>
+                  <p className="text-xs text-gray-400">{new Date(e.executed_at).toLocaleDateString("es-AR")}</p>
+                </div>
               </div>
-              <div className="shrink-0 text-right space-y-0.5">
-                <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[e.execution_status] ?? ""}`}>
-                  {e.execution_status}
-                </span>
-                <p className="text-xs text-gray-400">{new Date(e.executed_at).toLocaleDateString("es-AR")}</p>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -293,17 +287,15 @@ export default function EjecucionesClient({ schedules, executions, currentUserId
           <div className="w-full max-w-lg rounded-2xl bg-white p-6 space-y-4 shadow-xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between">
               <h2 className="text-base font-bold text-gray-900">Registrar ejecución</h2>
-              {!online && (
-                <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">Offline</span>
-              )}
+              {!online && <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">Offline</span>}
             </div>
 
             <div className="space-y-3">
-              <Field label="Mantenimiento" required>
-                <select value={form.schedule_id} onChange={(e) => { field("schedule_id", e.target.value); openFor(e.target.value); }} className="input">
+              <Field label="Orden de trabajo" required>
+                <select value={form.work_order_id} onChange={(e) => { field("work_order_id", e.target.value); if (e.target.value) openFor(e.target.value); }} className="input">
                   <option value="">Seleccioná...</option>
-                  {schedules.map((s: any) => (
-                    <option key={s.id} value={s.id}>{s.equipment?.code} — {s.equipment?.name} ({s.maintenance_type})</option>
+                  {workOrders.map((o: any) => (
+                    <option key={o.id} value={o.id}>#{o.ot_number} — {o.equipo_raw ?? o.descripcion ?? ""}</option>
                   ))}
                 </select>
               </Field>
@@ -328,10 +320,9 @@ export default function EjecucionesClient({ schedules, executions, currentUserId
               </Field>
 
               {form.execution_status === "completado" && (
-                <Field label="Próxima fecha (opcional — se calcula automáticamente)">
-                  <input type="date" value={form.next_date_override}
-                    onChange={(e) => field("next_date_override", e.target.value)} className="input" />
-                </Field>
+                <p className="text-xs text-gray-400 bg-gray-50 rounded-lg px-3 py-2">
+                  Al completar, la OT pasa a estado <span className="font-semibold text-gray-600">Realizado</span>.
+                </p>
               )}
 
               {/* Checklist */}
@@ -341,15 +332,12 @@ export default function EjecucionesClient({ schedules, executions, currentUserId
                   {checklist.items.map((item: any) => (
                     <div key={item.id} className="rounded-lg border border-gray-200 p-3 space-y-1">
                       <p className="text-sm text-gray-800">
-                        {item.label}
-                        {item.required && <span className="text-red-500 ml-1">*</span>}
+                        {item.label}{item.required && <span className="text-red-500 ml-1">*</span>}
                       </p>
                       {item.type === "check" && (
                         <label className="flex items-center gap-2 cursor-pointer">
-                          <input type="checkbox"
-                            checked={!!checklistResponses[item.id]}
-                            onChange={(e) => setChecklistResponses((r) => ({ ...r, [item.id]: e.target.checked }))}
-                            className="rounded" />
+                          <input type="checkbox" checked={!!checklistResponses[item.id]}
+                            onChange={(e) => setChecklistResponses((r) => ({ ...r, [item.id]: e.target.checked }))} className="rounded" />
                           <span className="text-xs text-gray-500">Verificado</span>
                         </label>
                       )}
@@ -366,9 +354,7 @@ export default function EjecucionesClient({ schedules, executions, currentUserId
                           onChange={(e) => setChecklistResponses((r) => ({ ...r, [item.id]: e.target.value }))}
                           className="input resize-none" />
                       )}
-                      {item.type === "photo" && (
-                        <p className="text-xs text-gray-400">Usá la sección de fotos abajo.</p>
-                      )}
+                      {item.type === "photo" && <p className="text-xs text-gray-400">Usá la sección de fotos abajo.</p>}
                     </div>
                   ))}
                 </div>
@@ -379,7 +365,7 @@ export default function EjecucionesClient({ schedules, executions, currentUserId
                   rows={3} className="input resize-none" placeholder="Detalle de lo realizado..." />
               </Field>
 
-              {/* Photo upload */}
+              {/* Fotos */}
               <div className="space-y-2">
                 <p className="text-xs font-medium text-gray-600">Fotos (máx. 5)</p>
                 {photoPreview.length > 0 && (
@@ -388,9 +374,7 @@ export default function EjecucionesClient({ schedules, executions, currentUserId
                       <div key={i} className="relative">
                         <img src={src} alt="" className="w-16 h-16 object-cover rounded-lg border border-gray-200" />
                         <button onClick={() => removePhoto(i)}
-                          className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 text-xs flex items-center justify-center leading-none">
-                          ✕
-                        </button>
+                          className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 text-xs flex items-center justify-center leading-none">✕</button>
                       </div>
                     ))}
                   </div>
@@ -398,8 +382,7 @@ export default function EjecucionesClient({ schedules, executions, currentUserId
                 {photos.length < 5 && (
                   <label className="flex items-center gap-2 cursor-pointer rounded-lg border border-dashed border-gray-300 px-3 py-2 text-sm text-gray-500 hover:border-blue-400 hover:text-blue-600 transition-colors w-fit">
                     <span>📷 Agregar foto</span>
-                    <input type="file" accept="image/*" multiple capture="environment" className="hidden"
-                      onChange={(e) => handlePhotos(e.target.files)} />
+                    <input type="file" accept="image/*" multiple capture="environment" className="hidden" onChange={(e) => handlePhotos(e.target.files)} />
                   </label>
                 )}
               </div>
@@ -408,8 +391,7 @@ export default function EjecucionesClient({ schedules, executions, currentUserId
             {error && <p className="text-sm text-red-600">{error}</p>}
 
             <div className="flex gap-2 pt-1">
-              <button onClick={save} disabled={saving || uploadingPhotos}
-                className="btn-primary disabled:opacity-50">
+              <button onClick={save} disabled={saving || uploadingPhotos} className="btn-primary disabled:opacity-50">
                 {uploadingPhotos ? "Subiendo fotos..." : saving ? "Guardando..." : online ? "Guardar" : "Guardar offline"}
               </button>
               <button onClick={() => setShowForm(false)}
