@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { createClient } from "@/lib/supabase/client";
 import { useConfirm } from "@/app/components/ConfirmProvider";
 import InfoTip from "@/app/components/InfoTip";
 
@@ -40,6 +41,8 @@ export default function AvisosClient({ equipment, canEdit, canSync }: {
   const [form, setForm]         = useState({ ...EMPTY });
   const [saving, setSaving]     = useState(false);
   const [error, setError]       = useState("");
+  const [photos, setPhotos]     = useState<File[]>([]);
+  const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
   const [otBusy, setOtBusy]     = useState<string | null>(null);
   const [otMsg, setOtMsg]       = useState<{ id: string; text: string; ok: boolean } | null>(null);
 
@@ -105,11 +108,44 @@ export default function AvisosClient({ equipment, canEdit, canSync }: {
     load();
   }
 
+  function handlePhotos(files: FileList | null) {
+    if (!files) return;
+    const arr = Array.from(files).slice(0, 3);
+    setPhotos(p => [...p, ...arr].slice(0, 3));
+    arr.forEach(fl => {
+      const reader = new FileReader();
+      reader.onload = ev => setPhotoPreviews(p => [...p, ev.target?.result as string]);
+      reader.readAsDataURL(fl);
+    });
+  }
+  function removePhoto(idx: number) {
+    setPhotos(p => p.filter((_, i) => i !== idx));
+    setPhotoPreviews(p => p.filter((_, i) => i !== idx));
+  }
+  async function uploadPhotos(): Promise<string[]> {
+    if (photos.length === 0) return [];
+    const supabase = createClient();
+    const urls: string[] = [];
+    const folder = `avisos/${Date.now()}`;
+    for (const photo of photos) {
+      const ext = photo.name.split(".").pop() ?? "jpg";
+      const path = `${folder}/${crypto.randomUUID()}.${ext}`;
+      const { error } = await supabase.storage.from("execution-photos").upload(path, photo, { upsert: false });
+      if (!error) {
+        const { data } = supabase.storage.from("execution-photos").getPublicUrl(path);
+        urls.push(data.publicUrl);
+      }
+    }
+    return urls;
+  }
+
   async function crearAviso(e: React.FormEvent) {
     e.preventDefault();
     if (!form.descripcion.trim()) { setError("La descripción es obligatoria."); return; }
     setSaving(true); setError("");
     const eq = equipment.find((x) => x.id === form.equipment_id);
+    let reference_photos: string[] = [];
+    try { reference_photos = await uploadPhotos(); } catch { /* fotos opcionales */ }
     const res = await fetch("/api/avisos", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -123,12 +159,13 @@ export default function AvisosClient({ equipment, canEdit, canSync }: {
         urgencia:     form.urgencia,
         quien_aviso:  form.quien_aviso,
         observaciones: form.observaciones,
+        reference_photos,
       }),
     });
     const data = await res.json();
     setSaving(false);
     if (!res.ok) { setError(data.error ?? "Error al crear el aviso."); return; }
-    setShowNew(false); setForm({ ...EMPTY }); load();
+    setShowNew(false); setForm({ ...EMPTY }); setPhotos([]); setPhotoPreviews([]); load();
   }
 
   return (
@@ -151,7 +188,7 @@ export default function AvisosClient({ equipment, canEdit, canSync }: {
             <span className={`text-sm ${syncMsg.startsWith("Error") ? "text-red-600" : "text-green-600"}`}>{syncMsg}</span>
           )}
           {canEdit && (
-            <button onClick={() => { setForm({ ...EMPTY }); setError(""); setShowNew(true); }}
+            <button onClick={() => { setForm({ ...EMPTY }); setError(""); setPhotos([]); setPhotoPreviews([]); setShowNew(true); }}
               className="flex items-center gap-2 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 transition-colors">
               + Nuevo aviso
             </button>
@@ -221,6 +258,15 @@ export default function AvisosClient({ equipment, canEdit, canSync }: {
                         {a.quien_aviso ? ` · avisó ${a.quien_aviso}` : ""}
                       </p>
                       {a.observaciones && <p className="text-xs text-gray-400 mt-1 italic">{a.observaciones}</p>}
+                      {Array.isArray(a.reference_photos) && a.reference_photos.length > 0 && (
+                        <div className="flex gap-2 mt-2 flex-wrap">
+                          {a.reference_photos.map((url: string, i: number) => (
+                            <a key={i} href={url} target="_blank" rel="noreferrer">
+                              <img src={url} alt="" className="w-14 h-14 rounded-lg object-cover border border-gray-200" />
+                            </a>
+                          ))}
+                        </div>
+                      )}
                     </div>
 
                     {canEdit && (
@@ -285,6 +331,30 @@ export default function AvisosClient({ equipment, canEdit, canSync }: {
               <label className="block text-xs font-medium text-gray-600">Observaciones</label>
               <textarea value={form.observaciones} onChange={(e) => setForm({ ...form, observaciones: e.target.value })}
                 rows={2} className="input resize-none" />
+            </div>
+
+            <div className="space-y-1">
+              <label className="block text-xs font-medium text-gray-600">Foto (hasta 3)</label>
+              <label className="flex items-center gap-2 cursor-pointer rounded-lg border border-dashed border-gray-300 px-4 py-3 hover:border-amber-400 transition-colors">
+                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                <span className="text-xs text-gray-500">
+                  {photos.length === 0 ? "Adjuntar foto..." : `${photos.length} foto(s) seleccionada(s)`}
+                </span>
+                <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => handlePhotos(e.target.files)} />
+              </label>
+              {photoPreviews.length > 0 && (
+                <div className="flex gap-2 mt-2 flex-wrap">
+                  {photoPreviews.map((src, i) => (
+                    <div key={i} className="relative">
+                      <img src={src} alt="" className="w-16 h-16 rounded-lg object-cover border border-gray-200" />
+                      <button type="button" onClick={() => removePhoto(i)}
+                        className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-xs flex items-center justify-center leading-none">×</button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {error && <p className="text-sm text-red-600">{error}</p>}

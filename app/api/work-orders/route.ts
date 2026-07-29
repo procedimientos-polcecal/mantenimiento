@@ -121,12 +121,38 @@ export async function POST(request: Request) {
 
   // Si la OT nace de un aviso, vincularlo y marcar "OT asignada"
   if (aviso_id) {
+    const { data: aviso } = await admin
+      .from("avisos").select("sheets_row").eq("id", aviso_id).single();
     await admin.from("avisos")
       .update({ work_order_id: inserted.id, ot_asignada: String(ot_number) })
       .eq("id", aviso_id);
+    // Escribir el N° de OT en la columna "OT ASIGNADA" (J) de la hoja de avisos
+    try {
+      if (aviso?.sheets_row) await updateAvisoSheetOT(aviso.sheets_row, ot_number);
+    } catch (e) {
+      console.error("Avisos sheet write-back error:", e);
+    }
   }
 
   return NextResponse.json({ data: inserted, sheets_written, ot_number });
+}
+
+// Escribe el N° de OT en la columna J ("OT ASIGNADA") de la hoja de avisos
+async function updateAvisoSheetOT(sheetsRow: number, otNumber: number): Promise<void> {
+  const SHEET_ID = process.env.GOOGLE_SHEETS_AVISOS_ID ?? "";
+  const TAB      = process.env.GOOGLE_SHEETS_AVISOS_TAB ?? "AVISOS";
+  if (!SHEET_ID || !sheetsRow) return;
+  const token = await getAccessToken();
+  const range = `${encodeURIComponent(TAB)}!J${sheetsRow}`;
+  const res = await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${range}?valueInputOption=USER_ENTERED`,
+    {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ values: [[String(otNumber)]] }),
+    }
+  );
+  if (!res.ok) throw new Error(`Avisos Sheets API ${res.status}: ${await res.text()}`);
 }
 
 // ── PATCH: update OT estado from app ────────────────────────────────────────
