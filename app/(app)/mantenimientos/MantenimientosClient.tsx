@@ -499,7 +499,7 @@ export default function MantenimientosClient({ schedules, equipment, users, link
                   <option value="">Seleccioná un equipo...</option>
                   {equipment.map((e: any) => (
                     <option key={e.id} value={e.id}>
-                      {e.code} — {e.name} ({e.sectors?.plants?.name})
+                      {e.code} — {e.name} ({e.sectors?.name})
                     </option>
                   ))}
                 </select>
