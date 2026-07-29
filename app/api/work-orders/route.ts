@@ -55,7 +55,7 @@ export async function POST(request: Request) {
     especialidad, tipo, quien, descripcion, repuesto,
     fecha, fecha_ejecucion, fecha_cierre,
     estado, contratista, horas, operario_1, operario_2, operario_3, prioridad,
-    schedule_id, frecuencia, proxima_fecha, reference_photos,
+    schedule_id, frecuencia, proxima_fecha, reference_photos, aviso_id,
   } = body;
 
   if (!descripcion?.trim()) {
@@ -117,6 +117,13 @@ export async function POST(request: Request) {
     }
   } catch (e) {
     // Credentials not configured — silently skip
+  }
+
+  // Si la OT nace de un aviso, vincularlo y marcar "OT asignada"
+  if (aviso_id) {
+    await admin.from("avisos")
+      .update({ work_order_id: inserted.id, ot_asignada: String(ot_number) })
+      .eq("id", aviso_id);
   }
 
   return NextResponse.json({ data: inserted, sheets_written, ot_number });

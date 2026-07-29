@@ -40,6 +40,8 @@ export default function AvisosClient({ equipment, canEdit, canSync }: {
   const [form, setForm]         = useState({ ...EMPTY });
   const [saving, setSaving]     = useState(false);
   const [error, setError]       = useState("");
+  const [otBusy, setOtBusy]     = useState<string | null>(null);
+  const [otMsg, setOtMsg]       = useState<{ id: string; text: string; ok: boolean } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -69,6 +71,38 @@ export default function AvisosClient({ equipment, canEdit, canSync }: {
     if (res.ok) { setSyncMsg(`✓ ${data.synced} avisos sincronizados`); setLastSync(new Date().toISOString()); load(); }
     else        { setSyncMsg(`Error: ${data.error}`); }
     setSyncing(false);
+  }
+
+  // Generar una OT a partir de un aviso (y vincularla)
+  async function generarOT(a: any) {
+    const ok = await confirm({
+      title: "Generar OT desde el aviso",
+      message: `Se creará una orden de trabajo a partir del aviso ${a.oa_number} (${a.equipo_raw ?? "sin equipo"}), se agregará a la planilla de OTs y el aviso quedará marcado como "OT asignada". ¿Continuar?`,
+      confirmText: "Generar OT",
+    });
+    if (!ok) return;
+    setOtBusy(a.id); setOtMsg(null);
+    const res = await fetch("/api/work-orders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        equipment_id: a.equipment_id ?? null,
+        sector_id:    a.sector_id ?? null,
+        sector_raw:   a.sector_raw ?? null,
+        equipo_raw:   a.equipo_raw ?? null,
+        equipo_code:  a.equipo_code ?? null,
+        descripcion:  a.descripcion ?? `Aviso ${a.oa_number}`,
+        tipo:         "CORRECTIVO",
+        estado:       "POR_HACER",
+        prioridad:    /alta/i.test(a.urgencia ?? "") ? "ALTA" : /baja/i.test(a.urgencia ?? "") ? "BAJA" : "MEDIA",
+        aviso_id:     a.id,
+      }),
+    });
+    const data = await res.json();
+    setOtBusy(null);
+    if (!res.ok) { setOtMsg({ id: a.id, text: data.error ?? "Error al crear la OT", ok: false }); return; }
+    setOtMsg({ id: a.id, text: `OT #${data.ot_number} creada`, ok: true });
+    load();
   }
 
   async function crearAviso(e: React.FormEvent) {
@@ -188,6 +222,21 @@ export default function AvisosClient({ equipment, canEdit, canSync }: {
                       </p>
                       {a.observaciones && <p className="text-xs text-gray-400 mt-1 italic">{a.observaciones}</p>}
                     </div>
+
+                    {canEdit && (
+                      <div className="shrink-0 flex flex-col items-end gap-1">
+                        {otMsg && otMsg.id === a.id ? (
+                          <span className={`text-xs ${otMsg.ok ? "text-green-600" : "text-red-600"}`}>{otMsg.text}</span>
+                        ) : (a.work_order_id || a.ot_asignada) ? (
+                          <span className="text-xs text-gray-400">OT ya asignada</span>
+                        ) : (
+                          <button onClick={() => generarOT(a)} disabled={otBusy === a.id}
+                            className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-40">
+                            {otBusy === a.id ? "Creando..." : "Generar OT"}
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               );
