@@ -93,6 +93,8 @@ export async function POST(request: Request) {
     operario_2:      rowData[16] ?? null,
     operario_3:      rowData[17] ?? null,
     prioridad:       rowData[18] ?? null,
+    frecuencia:      rowData[19] || null,           // T
+    proxima_fecha:   excelDateToISO(rowData[20]),   // U
     sheets_row:      row,
     synced_at:       new Date().toISOString(),
   };

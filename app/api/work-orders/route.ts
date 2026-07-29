@@ -218,6 +218,9 @@ function otToRow(ot: any): string[] {
     ot.operario_2 ?? "",
     ot.operario_3 ?? "",
     ot.prioridad ?? "",
+    ot.frecuencia ?? "",                    // T
+    isoToExcelDate(ot.proxima_fecha),       // U
+    "",                                     // V (foto) — la app no escribe acá; las fotos quedan en Supabase
   ];
 }
 

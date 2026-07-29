@@ -180,6 +180,8 @@ export async function POST(request: Request) {
         operario_3:      row[17] ?? null,
         sheets_row:      i + 2, // 1-indexed, +1 for header
         prioridad:       row[18] ?? null,
+        frecuencia:      row[19] || null,             // T
+        proxima_fecha:   excelDateToISO(row[20]),     // U
         synced_at:       new Date().toISOString(),
       });
     }
