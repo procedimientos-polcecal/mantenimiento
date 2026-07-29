@@ -65,6 +65,61 @@ export default function EquipoDetalle({ equipo, sectors, historial, canEdit, use
   const [statusSaving, setStatusSaving] = useState(false);
   const [statusError, setStatusError]   = useState("");
 
+  // Post-cambio de estado: ofrecer generar aviso u OT
+  const [followUp, setFollowUp] = useState<{ estado: string; reason: string } | null>(null);
+  const [genBusy, setGenBusy]   = useState<"aviso" | "ot" | null>(null);
+  const [genMsg, setGenMsg]     = useState("");
+
+  const equipoRaw = `${equipo.code} — ${equipo.name}`;
+
+  async function generarAviso() {
+    setGenBusy("aviso"); setGenMsg("");
+    const res = await fetch("/api/avisos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        equipment_id: equipo.id,
+        sector_id:    equipo.sector_id ?? null,
+        sector_raw:   equipo.sectors?.name ?? null,
+        equipo_raw:   equipoRaw,
+        equipo_code:  equipo.code,
+        descripcion:  followUp?.reason?.trim() || `Equipo en ${STATUS_META[followUp!.estado]?.label ?? followUp!.estado}`,
+        urgencia:     followUp?.estado === "EN_REPARACION" ? "🔴 Alta" : "🟡 Media",
+      }),
+    });
+    const data = await res.json();
+    setGenBusy(null);
+    if (!res.ok) { setGenMsg(data.error ?? "Error al crear el aviso"); return; }
+    setGenMsg(`✓ Aviso ${data.oa_number} creado`);
+  }
+
+  async function generarOT() {
+    setGenBusy("ot"); setGenMsg("");
+    const res = await fetch("/api/work-orders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        equipment_id: equipo.id,
+        sector_id:    equipo.sector_id ?? null,
+        sector_raw:   equipo.sectors?.name ?? null,
+        equipo_raw:   `${equipo.code} – ${equipo.name}`,
+        equipo_code:  equipo.code,
+        descripcion:  followUp?.reason?.trim() || `Trabajo por estado ${STATUS_META[followUp!.estado]?.label ?? followUp!.estado}`,
+        tipo:         "CORRECTIVO",
+        estado:       "POR_HACER",
+      }),
+    });
+    const data = await res.json();
+    setGenBusy(null);
+    if (!res.ok) { setGenMsg(data.error ?? "Error al crear la OT"); return; }
+    setGenMsg(`✓ OT #${data.ot_number} creada`);
+  }
+
+  function cerrarFollowUp() {
+    setFollowUp(null); setGenMsg("");
+    router.refresh();
+  }
+
   const [form, setForm] = useState({
     name:        equipo.name,
     code:        equipo.code,
@@ -106,7 +161,14 @@ export default function EquipoDetalle({ equipo, sectors, historial, canEdit, use
     if (!res.ok) { setStatusError(data.error ?? "Error al actualizar"); setStatusSaving(false); return; }
     setStatusSaving(false);
     setStatusModal(false);
-    router.refresh();
+    const changedToWork = newStatus !== equipo.status && REQUIRES_REASON.has(newStatus);
+    if (changedToWork) {
+      // Ofrecer generar aviso u OT para este cambio
+      setFollowUp({ estado: newStatus, reason });
+      setGenMsg("");
+    } else {
+      router.refresh();
+    }
   }
 
   // ── Full edit save ───────────────────────────────────────────────────────
@@ -419,6 +481,46 @@ export default function EquipoDetalle({ equipo, sectors, historial, canEdit, use
               <button onClick={() => setStatusModal(false)}
                 className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
                 Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Post-cambio de estado: generar aviso u OT */}
+      {followUp && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl space-y-4">
+            <div>
+              <h2 className="text-base font-bold text-gray-900" style={{ fontFamily: "'Syne', sans-serif" }}>
+                Equipo en {STATUS_META[followUp.estado]?.label ?? followUp.estado}
+              </h2>
+              <p className="text-sm text-gray-600 mt-1">
+                ¿Querés generar un aviso o una orden de trabajo para este equipo? Se pre-cargan con los datos del equipo y el motivo del cambio.
+              </p>
+            </div>
+
+            {genMsg ? (
+              <div className={`rounded-lg px-3 py-2 text-sm ${genMsg.startsWith("✓") ? "bg-green-50 text-green-700" : "bg-red-50 text-red-600"}`}>
+                {genMsg}
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-2">
+                <button onClick={generarAviso} disabled={genBusy !== null}
+                  className="rounded-lg border-2 border-amber-300 bg-amber-50 px-3 py-3 text-sm font-semibold text-amber-700 hover:bg-amber-100 transition-colors disabled:opacity-50">
+                  {genBusy === "aviso" ? "Creando..." : "Generar aviso"}
+                </button>
+                <button onClick={generarOT} disabled={genBusy !== null}
+                  className="rounded-lg border-2 border-blue-300 bg-blue-50 px-3 py-3 text-sm font-semibold text-blue-700 hover:bg-blue-100 transition-colors disabled:opacity-50">
+                  {genBusy === "ot" ? "Creando..." : "Generar OT"}
+                </button>
+              </div>
+            )}
+
+            <div className="flex justify-end">
+              <button onClick={cerrarFollowUp}
+                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+                {genMsg ? "Listo" : "Ahora no"}
               </button>
             </div>
           </div>
