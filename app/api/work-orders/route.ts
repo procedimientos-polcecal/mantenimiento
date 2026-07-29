@@ -55,7 +55,7 @@ export async function POST(request: Request) {
     especialidad, tipo, quien, descripcion, repuesto,
     fecha, fecha_ejecucion, fecha_cierre,
     estado, contratista, horas, operario_1, operario_2, operario_3, prioridad,
-    schedule_id,
+    schedule_id, frecuencia, proxima_fecha, reference_photos,
   } = body;
 
   if (!descripcion?.trim()) {
@@ -92,6 +92,9 @@ export async function POST(request: Request) {
     operario_3:      operario_3?.trim() || null,
     prioridad:       prioridad || null,
     schedule_id:     schedule_id || null,
+    frecuencia:      frecuencia || null,
+    proxima_fecha:   proxima_fecha || null,
+    reference_photos: Array.isArray(reference_photos) && reference_photos.length ? reference_photos : null,
     app_created:     true,
     created_by:      user.id,
     created_at_app:  new Date().toISOString(),

@@ -1,11 +1,22 @@
 "use client";
 
 import { useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 
 const ESPECIALIDADES = ["MECÁNICO", "ELÉCTRICO", "INSTRUMENTACIÓN", "CIVIL", "OTRO"];
 const TIPOS = ["PROGRAMADO", "CORRECTIVO", "PREDICTIVO", "MEJORA"];
 const QUIEN_OPTIONS = ["INTERNO", "CONTRATADO", "MIXTO"];
 const PRIORIDADES = ["ALTA", "MEDIA", "BAJA"];
+const FRECUENCIAS = [
+  { value: "",           label: "Sin frecuencia" },
+  { value: "DIARIO",     label: "Diario" },
+  { value: "SEMANAL",    label: "Semanal" },
+  { value: "QUINCENAL",  label: "Quincenal" },
+  { value: "MENSUAL",    label: "Mensual" },
+  { value: "TRIMESTRAL", label: "Trimestral" },
+  { value: "SEMESTRAL",  label: "Semestral" },
+  { value: "ANUAL",      label: "Anual" },
+];
 const ESTADOS_OT = [
   { value: "POR_HACER",  label: "Por hacer" },
   { value: "EN_PROCESO", label: "En proceso" },
@@ -21,6 +32,8 @@ export default function NuevaOTModal({ sectors, equipment, onClose, onCreated }:
 }) {
   const [saving, setSaving] = useState(false);
   const [error, setError]   = useState("");
+  const [photos, setPhotos] = useState<File[]>([]);
+  const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
 
   const [form, setForm] = useState({
     equipment_id:   "",
@@ -33,6 +46,8 @@ export default function NuevaOTModal({ sectors, equipment, onClose, onCreated }:
     fecha:          new Date().toISOString().slice(0, 10),
     fecha_ejecucion: "",
     fecha_cierre:   "",
+    frecuencia:     "",
+    proxima_fecha:  "",
     estado:         "POR_HACER",
     contratista:    "",
     horas:          "",
@@ -41,6 +56,37 @@ export default function NuevaOTModal({ sectors, equipment, onClose, onCreated }:
     operario_3:     "",
     prioridad:      "MEDIA",
   });
+
+  function handlePhotos(files: FileList | null) {
+    if (!files) return;
+    const arr = Array.from(files).slice(0, 3);
+    setPhotos(p => [...p, ...arr].slice(0, 3));
+    arr.forEach(fl => {
+      const reader = new FileReader();
+      reader.onload = ev => setPhotoPreviews(p => [...p, ev.target?.result as string]);
+      reader.readAsDataURL(fl);
+    });
+  }
+  function removePhoto(idx: number) {
+    setPhotos(p => p.filter((_, i) => i !== idx));
+    setPhotoPreviews(p => p.filter((_, i) => i !== idx));
+  }
+  async function uploadPhotos(): Promise<string[]> {
+    if (photos.length === 0) return [];
+    const supabase = createClient();
+    const urls: string[] = [];
+    const folder = `work-orders/${Date.now()}`;
+    for (const photo of photos) {
+      const ext = photo.name.split(".").pop() ?? "jpg";
+      const path = `${folder}/${crypto.randomUUID()}.${ext}`;
+      const { error } = await supabase.storage.from("execution-photos").upload(path, photo, { upsert: false });
+      if (!error) {
+        const { data } = supabase.storage.from("execution-photos").getPublicUrl(path);
+        urls.push(data.publicUrl);
+      }
+    }
+    return urls;
+  }
 
   function f(key: string, value: string) {
     setForm(p => {
@@ -67,12 +113,18 @@ export default function NuevaOTModal({ sectors, equipment, onClose, onCreated }:
     const eq = equipment.find((eq: any) => eq.id === form.equipment_id);
     const sec = sectors.find((s: any) => s.id === form.sector_id);
 
+    let reference_photos: string[] = [];
+    try { reference_photos = await uploadPhotos(); } catch { /* fotos opcionales */ }
+
     const res = await fetch("/api/work-orders", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         ...form,
-        horas:       form.horas ? Number(form.horas) : null,
+        horas:         form.horas ? Number(form.horas) : null,
+        proxima_fecha: form.proxima_fecha || null,
+        frecuencia:    form.frecuencia || null,
+        reference_photos,
         equipo_raw:  eq ? `${eq.code} – ${eq.name}` : null,
         equipo_code: eq?.code ?? null,
         sector_raw:  sec?.name ?? null,
@@ -162,6 +214,42 @@ export default function NuevaOTModal({ sectors, equipment, onClose, onCreated }:
               <input type="date" value={form.fecha_cierre} onChange={e => f("fecha_cierre", e.target.value)} className="input" />
             </F>
           </div>
+
+          {/* Frecuencia / próxima fecha */}
+          <div className="grid grid-cols-2 gap-4">
+            <F label="Frecuencia">
+              <select value={form.frecuencia} onChange={e => f("frecuencia", e.target.value)} className="input">
+                {FRECUENCIAS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </F>
+            <F label="Próxima fecha">
+              <input type="date" value={form.proxima_fecha} onChange={e => f("proxima_fecha", e.target.value)} className="input" />
+            </F>
+          </div>
+
+          {/* Fotos de referencia */}
+          <F label="Fotos de referencia (hasta 3)">
+            <label className="flex items-center gap-2 cursor-pointer rounded-lg border border-dashed border-gray-300 px-4 py-3 hover:border-amber-400 transition-colors">
+              <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              <span className="text-xs text-gray-500">
+                {photos.length === 0 ? "Adjuntar foto..." : `${photos.length} foto(s) seleccionada(s)`}
+              </span>
+              <input type="file" accept="image/*" multiple className="hidden" onChange={e => handlePhotos(e.target.files)} />
+            </label>
+            {photoPreviews.length > 0 && (
+              <div className="flex gap-2 mt-2 flex-wrap">
+                {photoPreviews.map((src, i) => (
+                  <div key={i} className="relative">
+                    <img src={src} alt="" className="w-16 h-16 rounded-lg object-cover border border-gray-200" />
+                    <button type="button" onClick={() => removePhoto(i)}
+                      className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-xs flex items-center justify-center leading-none">×</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </F>
 
           {/* Estado / prioridad / horas */}
           <div className="grid grid-cols-3 gap-4">
