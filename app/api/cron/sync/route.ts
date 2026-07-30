@@ -4,7 +4,7 @@ import { runWorkOrdersSync, runAvisosSync } from "@/lib/sheets-sync";
 // GET /api/cron/sync — lo invoca Vercel Cron cada 30 min.
 // Vercel manda Authorization: Bearer <CRON_SECRET> si la variable está seteada.
 export async function GET(request: Request) {
-  const cronSecret = process.env.CRON_SECRET;
+  const cronSecret = process.env.CRON_SECRET1 ?? process.env.CRON_SECRET;
   if (!cronSecret) {
     return NextResponse.json({ error: "CRON_SECRET no configurado" }, { status: 503 });
   }
