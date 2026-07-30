@@ -42,29 +42,40 @@ export default async function DashboardPage() {
   const otStats = OT_ESTADOS.map((estado, i) => ({ estado, count: otCounts[i].count ?? 0 }));
 
   // ── Tipo de trabajo (correctivo/preventivo) y ejecución (propio/contratado) ──
-  // Los valores vienen del Sheet como texto libre → se categorizan con match flexible.
-  const { data: woMeta } = await supabase
-    .from("work_orders")
-    .select("tipo, quien")
-    .range(0, 9999);
+  // Se usan count queries (head) para no chocar con el límite de filas de Supabase.
+  const woCount = (build: (q: any) => any) =>
+    build(supabase.from("work_orders").select("id", { count: "exact", head: true }));
 
-  const tipoTally: Record<string, number> = { Correctivo: 0, Preventivo: 0, Otro: 0 };
-  const quienTally: Record<string, number> = { Propio: 0, Contratado: 0, Mixto: 0, Otro: 0 };
-  for (const w of woMeta ?? []) {
-    const t = (w.tipo ?? "").toString().toLowerCase();
-    if (t) {
-      if (t.includes("correctiv")) tipoTally.Correctivo++;
-      else if (t.includes("prevent") || t.includes("program")) tipoTally.Preventivo++;
-      else tipoTally.Otro++;
-    }
-    const q = (w.quien ?? "").toString().toLowerCase();
-    if (q) {
-      if (q.includes("contrat")) quienTally.Contratado++;
-      else if (q.includes("propio") || q.includes("interno")) quienTally.Propio++;
-      else if (q.includes("mixto")) quienTally.Mixto++;
-      else quienTally.Otro++;
-    }
-  }
+  const [
+    tipoTotalR, correctivoR, preventivoR,
+    quienTotalR, contratadoR, propioR, mixtoR,
+  ] = await Promise.all([
+    woCount((q) => q.not("tipo", "is", null).neq("tipo", "")),
+    woCount((q) => q.ilike("tipo", "%correctiv%")),
+    woCount((q) => q.or("tipo.ilike.%prevent%,tipo.ilike.%program%")),
+    woCount((q) => q.not("quien", "is", null).neq("quien", "")),
+    woCount((q) => q.ilike("quien", "%contrat%")),
+    woCount((q) => q.or("quien.ilike.%propio%,quien.ilike.%interno%")),
+    woCount((q) => q.ilike("quien", "%mixto%")),
+  ]);
+
+  const correctivo = correctivoR.count ?? 0;
+  const preventivo = preventivoR.count ?? 0;
+  const contratado = contratadoR.count ?? 0;
+  const propio     = propioR.count ?? 0;
+  const mixto      = mixtoR.count ?? 0;
+
+  const tipoTally: Record<string, number> = {
+    Correctivo: correctivo,
+    Preventivo: preventivo,
+    Otro: Math.max(0, (tipoTotalR.count ?? 0) - correctivo - preventivo),
+  };
+  const quienTally: Record<string, number> = {
+    Propio: propio,
+    Contratado: contratado,
+    Mixto: mixto,
+    Otro: Math.max(0, (quienTotalR.count ?? 0) - propio - contratado - mixto),
+  };
 
   const canEdit = ["admin_sistema", "administrador"].includes(appUser?.role ?? "");
 
