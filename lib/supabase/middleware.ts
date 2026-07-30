@@ -27,10 +27,13 @@ export async function updateSession(request: NextRequest) {
 
   const path = request.nextUrl.pathname
   const isAuthPage = path.startsWith('/login')
-  // Rutas públicas: login, recuperación de contraseña y el callback de OAuth
+  // Rutas públicas: login, recuperación de contraseña, callback de OAuth.
+  // Las rutas /api NO se redirigen a /login: cada endpoint valida su propia
+  // autenticación (sesión o token) y devuelve su error JSON correspondiente.
   const isPublicPath = path === '/login'
     || path.startsWith('/reset-password')
     || path.startsWith('/auth')
+    || path.startsWith('/api')
 
   if (!user && !isPublicPath) {
     const url = request.nextUrl.clone()
