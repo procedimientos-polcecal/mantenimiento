@@ -26,8 +26,8 @@ export async function POST(request: Request) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   const { data: caller } = await supabase.from("app_users").select("role").eq("id", user.id).single();
-  if (!["admin_sistema", "administrador"].includes(caller?.role ?? "")) {
-    return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
+  if (caller?.role !== "admin_sistema") {
+    return NextResponse.json({ error: "Solo administrador de sistema" }, { status: 403 });
   }
 
   const { week_start, sector_id, days, note } = await request.json();
