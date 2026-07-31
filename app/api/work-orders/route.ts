@@ -11,15 +11,22 @@ export async function GET(request: Request) {
   const estado       = searchParams.get("estado");
   const equipment_id = searchParams.get("equipment_id");
   const search       = searchParams.get("q");
+  const pendientes   = searchParams.get("pendientes"); // modo priorización
   const page         = Number(searchParams.get("page") ?? 1);
   const limit        = 50;
 
   const admin = createAdminClient();
-  let query = admin
-    .from("work_orders")
-    .select("*", { count: "exact" })
-    .order("ot_number", { ascending: false })
-    .range((page - 1) * limit, page * limit - 1);
+  // En modo priorización traemos las pendientes (no realizadas) con la
+  // criticidad del equipo, para poder ordenarlas del lado del cliente.
+  let query = pendientes
+    ? admin.from("work_orders")
+        .select("*, equipment(criticality)", { count: "exact" })
+        .neq("estado", "REALIZADO")
+        .limit(500)
+    : admin.from("work_orders")
+        .select("*", { count: "exact" })
+        .order("ot_number", { ascending: false })
+        .range((page - 1) * limit, page * limit - 1);
 
   if (estado)       query = query.eq("estado", estado);
   if (equipment_id) query = query.eq("equipment_id", equipment_id);

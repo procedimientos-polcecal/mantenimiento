@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import NuevaOTModal from "./NuevaOTModal";
 import { useConfirm } from "@/app/components/ConfirmProvider";
 import InfoTip from "@/app/components/InfoTip";
@@ -16,6 +16,21 @@ const ESTADOS = [
 export function estadoMeta(v: string) {
   return ESTADOS.find((e) => e.value === v) ?? { label: v, color: "#64748B", bg: "#F8FAFC", dot: "#94A3B8" };
 }
+
+const SORT_OPTIONS = [
+  { value: "numero",    label: "N° OT (recientes)" },
+  { value: "sugerido",  label: "Sugerido" },
+  { value: "prioridad", label: "Prioridad" },
+  { value: "estado",    label: "Estado (atrasadas primero)" },
+  { value: "fecha",     label: "Antigüedad" },
+  { value: "manual",    label: "Manual (arrastrar)" },
+];
+
+const PRIO_W:   Record<string, number> = { ALTA: 3, MEDIA: 2, BAJA: 1 };
+const ESTADO_W: Record<string, number> = { ATRASADO: 4, EN_PROCESO: 3, POR_HACER: 2, SUSPENDIDA: 1, REALIZADO: 0 };
+const CRIT_W:   Record<string, number> = { ALTA: 3, MEDIA: 2, BAJA: 1 };
+const wOf = (m: Record<string, number>, v: any) => m[(v ?? "").toString().toUpperCase()] ?? 0;
+const cmpFecha = (a: any, b: any) => (a.fecha ?? "9999").localeCompare(b.fecha ?? "9999");
 
 export default function OrdenesClient({
   canSync, canEdit, sectors, equipment,
@@ -38,6 +53,11 @@ export default function OrdenesClient({
   const [expanded, setExpanded] = useState<string | null>(null);
   const [showNew, setShowNew]   = useState(false);
   const [view, setView]         = useState<"list" | "kanban">("list");
+  const [sortMode, setSortMode] = useState("numero");
+  const [manualList, setManualList] = useState<any[]>([]);
+  const [dragIdx, setDragIdx]   = useState<number | null>(null);
+
+  const prioritizing = view === "list" && sortMode !== "numero";
 
   // Kanban: cada columna se carga por separado (con su propio filtro y total)
   const [kanbanData, setKanbanData] = useState<Record<string, { items: any[]; count: number }>>({});
@@ -45,15 +65,18 @@ export default function OrdenesClient({
 
   const load = useCallback(async () => {
     setLoading(true);
-    const params = new URLSearchParams({ page: String(page) });
+    const params = new URLSearchParams();
+    // Modo priorización: trae las pendientes (no realizadas) sin paginar
+    if (view === "list" && sortMode !== "numero") params.set("pendientes", "1");
+    else params.set("page", String(page));
     if (estadoFilter) params.set("estado", estadoFilter);
     if (search)       params.set("q", search);
     const res = await fetch(`/api/work-orders?${params}`);
     const json = await res.json();
     setOrders(json.data ?? []);
-    setCount(json.count ?? 0);
+    setCount(json.count ?? (json.data?.length ?? 0));
     setLoading(false);
-  }, [page, estadoFilter, search]);
+  }, [page, estadoFilter, search, sortMode, view]);
 
   const KANBAN_ESTADOS = ["ATRASADO", "EN_PROCESO", "POR_HACER", "REALIZADO"];
   const loadKanban = useCallback(async () => {
@@ -115,6 +138,59 @@ export default function OrdenesClient({
   }
 
   const totalPages = Math.ceil(count / 50);
+
+  // ── Ordenamiento (priorización) ────────────────────────────────────────────
+  const sortedOrders = useMemo(() => {
+    const arr = [...orders];
+    switch (sortMode) {
+      case "sugerido":
+        arr.sort((a, b) =>
+          wOf(ESTADO_W, b.estado) - wOf(ESTADO_W, a.estado)
+          || wOf(PRIO_W, b.prioridad) - wOf(PRIO_W, a.prioridad)
+          || wOf(CRIT_W, b.equipment?.criticality) - wOf(CRIT_W, a.equipment?.criticality)
+          || cmpFecha(a, b));
+        break;
+      case "prioridad":
+        arr.sort((a, b) => wOf(PRIO_W, b.prioridad) - wOf(PRIO_W, a.prioridad)
+          || wOf(ESTADO_W, b.estado) - wOf(ESTADO_W, a.estado) || cmpFecha(a, b));
+        break;
+      case "estado":
+        arr.sort((a, b) => wOf(ESTADO_W, b.estado) - wOf(ESTADO_W, a.estado)
+          || wOf(PRIO_W, b.prioridad) - wOf(PRIO_W, a.prioridad));
+        break;
+      case "fecha":
+        arr.sort(cmpFecha);
+        break;
+      case "manual":
+        arr.sort((a, b) => (a.orden_manual ?? 1e9) - (b.orden_manual ?? 1e9) || b.ot_number - a.ot_number);
+        break;
+    }
+    return arr;
+  }, [orders, sortMode]);
+
+  // El modo manual usa una lista mutable propia (para arrastrar)
+  useEffect(() => {
+    if (sortMode === "manual") setManualList(sortedOrders);
+  }, [sortMode, sortedOrders]);
+
+  async function persistOrder(arr: any[]) {
+    await fetch("/api/work-orders/orden", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items: arr.map((o, idx) => ({ id: o.id, orden: idx })) }),
+    });
+  }
+  function onDrop(i: number) {
+    if (dragIdx === null || dragIdx === i) { setDragIdx(null); return; }
+    const arr = [...manualList];
+    const [moved] = arr.splice(dragIdx, 1);
+    arr.splice(i, 0, moved);
+    setManualList(arr);
+    setDragIdx(null);
+    persistOrder(arr);
+  }
+
+  const listOrders = sortMode === "manual" ? manualList : sortedOrders;
 
   // Kanban groups — cada columna con sus items cargados y su total real
   const kanbanGroups = ESTADOS.slice(1).map(e => ({
@@ -192,10 +268,25 @@ export default function OrdenesClient({
               {e.label}
             </button>
           ))}
+          <div className="flex items-center gap-2 sm:ml-auto">
+            <label className="text-xs text-gray-400 hidden sm:inline">Ordenar:</label>
+            <select value={sortMode} onChange={(e) => { setSortMode(e.target.value); setPage(1); }}
+              className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-700 outline-none focus:border-amber-400">
+              {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </div>
           <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }}
             placeholder="Buscar equipo, sector, descripción..."
-            className="w-full sm:w-60 sm:ml-auto rounded-lg border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100" />
+            className="w-full rounded-lg border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100" />
         </div>
+      )}
+
+      {prioritizing && (
+        <p className="text-xs text-gray-400">
+          {sortMode === "manual"
+            ? "Arrastrá las OTs para fijar tu orden. Muestra las pendientes (no realizadas)."
+            : `Ordenadas por «${SORT_OPTIONS.find(o => o.value === sortMode)?.label}». Muestra las pendientes (no realizadas).`}
+        </p>
       )}
 
       {view === "kanban" ? (
@@ -235,8 +326,8 @@ export default function OrdenesClient({
       ) : (
         /* ── List ── */
         <>
-          <p className="text-xs text-gray-400">{count} órdenes</p>
-          {orders.length === 0 ? (
+          <p className="text-xs text-gray-400">{prioritizing ? `${listOrders.length} pendientes` : `${count} órdenes`}</p>
+          {listOrders.length === 0 ? (
             <div className="rounded-xl border border-dashed border-gray-200 py-16 text-center">
               <p className="text-gray-400 text-sm">
                 {lastSync ? "No hay órdenes con esos filtros." : "Aún no se sincronizaron datos."}
@@ -244,19 +335,38 @@ export default function OrdenesClient({
             </div>
           ) : (
             <div className="rounded-xl border border-gray-200 bg-white divide-y divide-gray-100 overflow-hidden">
-              {orders.map((o) => {
+              {listOrders.map((o, i) => {
                 const meta   = estadoMeta(o.estado);
                 const isOpen = expanded === o.id;
+                const canDrag = sortMode === "manual" && canEdit;
+                const prio = (o.prioridad ?? "").toString().toUpperCase();
+                const prioColor = prio === "ALTA" ? "#DC2626" : prio === "BAJA" ? "#16A34A" : prio === "MEDIA" ? "#B45309" : null;
                 return (
-                  <div key={o.id}>
+                  <div key={o.id}
+                    draggable={canDrag}
+                    onDragStart={canDrag ? () => setDragIdx(i) : undefined}
+                    onDragOver={canDrag ? (e) => e.preventDefault() : undefined}
+                    onDrop={canDrag ? () => onDrop(i) : undefined}
+                    className={dragIdx === i ? "opacity-50" : ""}>
                     <button onClick={() => setExpanded(isOpen ? null : o.id)}
                       className="w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-gray-50 transition-colors">
+                      {canDrag && (
+                        <span className="shrink-0 text-gray-300 cursor-grab active:cursor-grabbing" title="Arrastrar">
+                          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M7 4a1 1 0 11-2 0 1 1 0 012 0zM7 10a1 1 0 11-2 0 1 1 0 012 0zM6 17a1 1 0 100-2 1 1 0 000 2zM15 4a1 1 0 11-2 0 1 1 0 012 0zM14 11a1 1 0 100-2 1 1 0 000 2zM15 16a1 1 0 11-2 0 1 1 0 012 0z" /></svg>
+                        </span>
+                      )}
+                      {prioritizing && <span className="text-xs font-mono text-gray-300 w-5 shrink-0 text-right">{i + 1}</span>}
                       <span className="text-xs font-mono font-bold text-gray-400 w-12 shrink-0">#{o.ot_number}</span>
                       <span className="w-2 h-2 rounded-full shrink-0" style={{ background: meta.dot }} />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-gray-900 truncate">{o.descripcion ?? "—"}</p>
                         <p className="text-xs text-gray-400 truncate">{o.sector_raw}{o.equipo_raw ? ` · ${o.equipo_raw}` : ""}</p>
                       </div>
+                      {prioColor && (
+                        <span className="shrink-0 text-xs font-semibold hidden sm:inline" style={{ color: prioColor }} title="Prioridad">
+                          {prio.charAt(0) + prio.slice(1).toLowerCase()}
+                        </span>
+                      )}
                       <span className="shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full border hidden sm:inline-flex items-center gap-1"
                         style={{ color: meta.color, background: meta.bg, borderColor: meta.color + "33" }}>
                         {meta.label}
@@ -275,7 +385,7 @@ export default function OrdenesClient({
               })}
             </div>
           )}
-          {totalPages > 1 && (
+          {!prioritizing && totalPages > 1 && (
             <div className="flex items-center justify-center gap-2">
               <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
                 className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-40">← Anterior</button>
