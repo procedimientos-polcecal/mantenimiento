@@ -221,6 +221,12 @@ export default function EquipoDetalle({ equipo, sectors, historial, canEdit, use
           >
             Checklist
           </Link>
+          <Link
+            href={`/equipos/${equipo.id}/repuestos`}
+            className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            Repuestos
+          </Link>
 
           {/* Status badge — clickable for admins */}
           {canEdit ? (
