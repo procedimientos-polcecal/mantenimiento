@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 const ESPECIALIDADES = ["MECÁNICO", "ELÉCTRICO", "INSTRUMENTACIÓN", "CIVIL", "OTRO"];
@@ -34,6 +34,7 @@ export default function NuevaOTModal({ sectors, equipment, onClose, onCreated }:
   const [error, setError]   = useState("");
   const [photos, setPhotos] = useState<File[]>([]);
   const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
+  const [parts, setParts]   = useState<any[]>([]);
 
   const [form, setForm] = useState({
     equipment_id:   "",
@@ -99,6 +100,22 @@ export default function NuevaOTModal({ sectors, equipment, onClose, onCreated }:
       return next;
     });
   }
+
+  // Cargar el catálogo de repuestos del equipo elegido
+  useEffect(() => {
+    if (!form.equipment_id) { setParts([]); return; }
+    fetch(`/api/equipos/${form.equipment_id}/repuestos`)
+      .then(r => r.json()).then(d => setParts(d.data ?? [])).catch(() => setParts([]));
+  }, [form.equipment_id]);
+
+  // Alternar un repuesto en el texto (separado por comas)
+  function togglePart(name: string) {
+    const current = form.repuesto.split(",").map(s => s.trim()).filter(Boolean);
+    const idx = current.indexOf(name);
+    if (idx >= 0) current.splice(idx, 1); else current.push(name);
+    f("repuesto", current.join(", "));
+  }
+  const repuestoList = form.repuesto.split(",").map(s => s.trim()).filter(Boolean);
 
   const selectedEquip = equipment.find((e: any) => e.id === form.equipment_id);
   const filteredEquip = form.sector_id
@@ -198,8 +215,27 @@ export default function NuevaOTModal({ sectors, equipment, onClose, onCreated }:
 
           {/* Repuesto */}
           <F label="Repuesto utilizado">
+            {parts.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {parts.map((p: any) => {
+                  const on = repuestoList.includes(p.name);
+                  return (
+                    <button key={p.id} type="button" onClick={() => togglePart(p.name)}
+                      className="rounded-full px-2.5 py-1 text-xs font-medium border transition-colors"
+                      style={{
+                        color: on ? "#B45309" : "#64748B",
+                        background: on ? "#FFFBEB" : "#fff",
+                        borderColor: on ? "#F59E0B" : "#E2E8F0",
+                      }}
+                      title={p.code ? `Cód: ${p.code}` : undefined}>
+                      {on ? "✓ " : ""}{p.name}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
             <input value={form.repuesto} onChange={e => f("repuesto", e.target.value)}
-              className="input" placeholder="Ej: Rodamiento 32222..." />
+              className="input" placeholder="Elegí de la lista o escribí libremente..." />
           </F>
 
           {/* Fechas */}

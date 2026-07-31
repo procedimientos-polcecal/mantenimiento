@@ -22,7 +22,7 @@ function urgenciaMeta(raw: string) {
 }
 
 const EMPTY = {
-  equipment_id: "", descripcion: "", urgencia: "🟡 Media", quien_aviso: "", observaciones: "",
+  equipment_id: "", descripcion: "", urgencia: "🟡 Media", quien_aviso: "", observaciones: "", repuesto: "",
 };
 
 export default function AvisosClient({ equipment, canEdit, canSync }: {
@@ -43,6 +43,7 @@ export default function AvisosClient({ equipment, canEdit, canSync }: {
   const [error, setError]       = useState("");
   const [photos, setPhotos]     = useState<File[]>([]);
   const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
+  const [parts, setParts]       = useState<any[]>([]);
   const [otBusy, setOtBusy]     = useState<string | null>(null);
   const [otMsg, setOtMsg]       = useState<{ id: string; text: string; ok: boolean } | null>(null);
 
@@ -60,6 +61,21 @@ export default function AvisosClient({ equipment, canEdit, canSync }: {
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { fetch("/api/avisos/sync").then(r => r.json()).then(d => setLastSync(d.last_sync)); }, []);
+
+  // Catálogo de repuestos del equipo elegido en el form
+  useEffect(() => {
+    if (!form.equipment_id) { setParts([]); return; }
+    fetch(`/api/equipos/${form.equipment_id}/repuestos`)
+      .then(r => r.json()).then(d => setParts(d.data ?? [])).catch(() => setParts([]));
+  }, [form.equipment_id]);
+
+  function togglePart(name: string) {
+    const current = form.repuesto.split(",").map(s => s.trim()).filter(Boolean);
+    const idx = current.indexOf(name);
+    if (idx >= 0) current.splice(idx, 1); else current.push(name);
+    setForm({ ...form, repuesto: current.join(", ") });
+  }
+  const repuestoList = form.repuesto.split(",").map(s => s.trim()).filter(Boolean);
 
   async function sync() {
     const ok = await confirm({
@@ -95,6 +111,7 @@ export default function AvisosClient({ equipment, canEdit, canSync }: {
         equipo_raw:   a.equipo_raw ?? null,
         equipo_code:  a.equipo_code ?? null,
         descripcion:  a.descripcion ?? `Aviso ${a.oa_number}`,
+        repuesto:     a.repuesto ?? null,
         tipo:         "CORRECTIVO",
         estado:       "POR_HACER",
         prioridad:    /alta/i.test(a.urgencia ?? "") ? "ALTA" : /baja/i.test(a.urgencia ?? "") ? "BAJA" : "MEDIA",
@@ -159,6 +176,7 @@ export default function AvisosClient({ equipment, canEdit, canSync }: {
         urgencia:     form.urgencia,
         quien_aviso:  form.quien_aviso,
         observaciones: form.observaciones,
+        repuesto:     form.repuesto,
         reference_photos,
       }),
     });
@@ -257,6 +275,7 @@ export default function AvisosClient({ equipment, canEdit, canSync }: {
                         {[a.sector_raw, a.equipo_raw].filter(Boolean).join(" · ")}
                         {a.quien_aviso ? ` · avisó ${a.quien_aviso}` : ""}
                       </p>
+                      {a.repuesto && <p className="text-xs text-gray-500 mt-1">🔧 {a.repuesto}</p>}
                       {a.observaciones && <p className="text-xs text-gray-400 mt-1 italic">{a.observaciones}</p>}
                       {Array.isArray(a.reference_photos) && a.reference_photos.length > 0 && (
                         <div className="flex gap-2 mt-2 flex-wrap">
@@ -331,6 +350,31 @@ export default function AvisosClient({ equipment, canEdit, canSync }: {
               <label className="block text-xs font-medium text-gray-600">Observaciones</label>
               <textarea value={form.observaciones} onChange={(e) => setForm({ ...form, observaciones: e.target.value })}
                 rows={2} className="input resize-none" />
+            </div>
+
+            <div className="space-y-1">
+              <label className="block text-xs font-medium text-gray-600">Repuestos</label>
+              {parts.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-1">
+                  {parts.map((p: any) => {
+                    const on = repuestoList.includes(p.name);
+                    return (
+                      <button key={p.id} type="button" onClick={() => togglePart(p.name)}
+                        className="rounded-full px-2.5 py-1 text-xs font-medium border transition-colors"
+                        style={{
+                          color: on ? "#B45309" : "#64748B",
+                          background: on ? "#FFFBEB" : "#fff",
+                          borderColor: on ? "#F59E0B" : "#E2E8F0",
+                        }}
+                        title={p.code ? `Cód: ${p.code}` : undefined}>
+                        {on ? "✓ " : ""}{p.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              <input value={form.repuesto} onChange={(e) => setForm({ ...form, repuesto: e.target.value })}
+                className="input" placeholder={parts.length ? "Elegí de la lista o escribí..." : "Elegí un equipo para ver sus repuestos, o escribí libremente"} />
             </div>
 
             <div className="space-y-1">

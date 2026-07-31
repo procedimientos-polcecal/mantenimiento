@@ -126,7 +126,7 @@ export async function POST(request: Request) {
 
   const body = await request.json();
   const { equipment_id, sector_id, sector_raw, equipo_raw, equipo_code,
-          descripcion, urgencia, quien_aviso, observaciones, reference_photos } = body;
+          descripcion, urgencia, quien_aviso, observaciones, reference_photos, repuesto } = body;
 
   if (!descripcion?.trim()) {
     return NextResponse.json({ error: "La descripción es requerida" }, { status: 400 });
@@ -171,6 +171,7 @@ export async function POST(request: Request) {
     urgencia:     urgencia || null,
     quien_aviso:  quien_aviso || null,
     observaciones: observaciones?.trim() || null,
+    repuesto:     repuesto?.trim() || null,
     reference_photos: Array.isArray(reference_photos) && reference_photos.length ? reference_photos : null,
     app_created:  true,
     created_by:   user.id,
