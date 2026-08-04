@@ -45,7 +45,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
 
   // ── Full field update ────────────────────────────────────────────────────
-  const { name, code, sector_id, power_kw, description, criticality, notes, status, old_status, ficha } = body;
+  const { name, code, sector_id, power_kw, description, criticality, notes, status, old_status, ficha, tipo_id } = body;
 
   const payload: any = {
     name: name?.trim(), code: code?.trim(), sector_id,
@@ -54,6 +54,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     criticality, notes: notes?.trim() || null,
   };
   if (status) payload.status = status;
+  if (tipo_id !== undefined) payload.tipo_id = tipo_id || null;
 
   // Ficha técnica (campos opcionales de la BD de equipos)
   if (ficha && typeof ficha === "object") {

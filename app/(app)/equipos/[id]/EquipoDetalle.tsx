@@ -43,7 +43,6 @@ const REQUIRES_REASON = new Set(["EN_MANTENIMIENTO", "EN_REPARACION", "STANDBY",
 type FichaField = { key: string; label: string; type?: "text" | "int" | "num" | "date" };
 const FICHA_GROUPS: { title: string; fields: FichaField[] }[] = [
   { title: "Identificación", fields: [
-    { key: "tipo_equipo", label: "Tipo de equipo" },
     { key: "marca", label: "Marca" },
     { key: "modelo", label: "Modelo" },
     { key: "nro_serie", label: "N° de serie" },
@@ -82,11 +81,12 @@ const FICHA_GROUPS: { title: string; fields: FichaField[] }[] = [
 ];
 const FICHA_KEYS = FICHA_GROUPS.flatMap((g) => g.fields.map((f) => f.key));
 
-export default function EquipoDetalle({ equipo, sectors, historial, tipo, canEdit, userId }: {
+export default function EquipoDetalle({ equipo, sectors, historial, tipo, tipos, canEdit, userId }: {
   equipo: any;
   sectors: any[];
   historial: any[];
   tipo?: any;
+  tipos?: any[];
   canEdit: boolean;
   userId: string;
 }) {
@@ -189,7 +189,10 @@ export default function EquipoDetalle({ equipo, sectors, historial, tipo, canEdi
   function fichaField(key: string, value: string) {
     setFicha((f) => ({ ...f, [key]: value }));
   }
-  const hasFicha = FICHA_KEYS.some((k) => equipo[k] != null && equipo[k] !== "");
+  const hasFicha = FICHA_KEYS.some((k) => equipo[k] != null && equipo[k] !== "") || !!equipo.tipo_equipo;
+
+  // Tipo de equipo (selector)
+  const [tipoId, setTipoId] = useState<string>(equipo.tipo_id ?? "");
 
   // ── Status change ────────────────────────────────────────────────────────
   function openStatusModal() {
@@ -242,7 +245,8 @@ export default function EquipoDetalle({ equipo, sectors, historial, tipo, canEdi
         description: form.description.trim() || null,
         criticality: form.criticality,
         notes:       form.notes.trim() || null,
-        ficha,
+        tipo_id:     tipoId || null,
+        ficha: { ...ficha, tipo_equipo: (tipos ?? []).find((t) => t.tipo_id === tipoId)?.nombre_tipo ?? null },
       }),
     });
     const data = await res.json();
@@ -418,6 +422,16 @@ export default function EquipoDetalle({ equipo, sectors, historial, tipo, canEdi
 
         {editing ? (
           <div className="rounded-xl border border-gray-200 bg-white p-5 space-y-5">
+            <Field label="Tipo de equipo">
+              <select value={tipoId} onChange={(e) => setTipoId(e.target.value)} className="input">
+                <option value="">— Sin tipo —</option>
+                {(tipos ?? []).map((t: any) => (
+                  <option key={t.tipo_id} value={t.tipo_id}>
+                    {t.nombre_tipo}{t.categoria ? ` (${t.categoria})` : ""}
+                  </option>
+                ))}
+              </select>
+            </Field>
             {FICHA_GROUPS.map((g) => (
               <div key={g.title}>
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">{g.title}</p>
