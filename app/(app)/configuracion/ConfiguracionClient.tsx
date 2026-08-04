@@ -23,6 +23,26 @@ export default function ConfiguracionClient({ sectors, plants }: {
   const [newPlant, setNewPlant] = useState("");
   const [error, setError]     = useState("");
 
+  // Import BD de equipos
+  const [importing, setImporting] = useState(false);
+  const [importMsg, setImportMsg] = useState<{ text: string; ok: boolean } | null>(null);
+
+  async function importBD(file: File | null) {
+    if (!file) return;
+    setImporting(true); setImportMsg(null);
+    const fd = new FormData();
+    fd.append("file", file);
+    const res = await fetch("/api/equipos/import-bd", { method: "POST", body: fd });
+    const d = await res.json();
+    setImporting(false);
+    if (!res.ok) { setImportMsg({ text: d.error ?? "Error al importar", ok: false }); return; }
+    const noEnc = (d.no_encontrados?.length ?? 0);
+    setImportMsg({
+      ok: true,
+      text: `✓ ${d.tipos} tipos, ${d.equipos} equipos y ${d.componentes} componentes importados${noEnc ? ` · ${noEnc} códigos no encontrados en la app` : ""}.`,
+    });
+  }
+
   function startEdit(s: any) {
     setEditId(s.id); setEditName(s.name); setMsg("");
   }
@@ -127,6 +147,28 @@ export default function ConfiguracionClient({ sectors, plants }: {
           <ConfigLink href="/equipos" title="Equipos"
             desc="Editar datos de equipos, estado, criticidad, sector e importar desde Excel." />
         </div>
+      </section>
+
+      {/* Importar BD de equipos */}
+      <section className="bg-white rounded-2xl border border-gray-200 p-5">
+        <h2 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2" style={{ fontFamily: "'Syne', sans-serif" }}>
+          Importar BD de equipos
+          <InfoTip text="Subí el Excel 'BD Equipos v3'. Importa la ficha técnica de cada equipo (match por código), los tipos de equipo y los componentes. Solo actualiza equipos que ya existen en la app; los campos vacíos del Excel no pisan datos cargados." />
+        </h2>
+        <p className="text-xs text-gray-400 mb-3">
+          Lee las hojas <b>EQUIPOS</b>, <b>TIPO_EQUIPO</b> y <b>COMPONENTES</b>. Las tareas PM no se importan.
+        </p>
+        <label className="inline-flex items-center gap-2 cursor-pointer rounded-lg border border-dashed border-gray-300 px-4 py-2.5 hover:border-amber-400 transition-colors">
+          <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+          </svg>
+          <span className="text-sm text-gray-600">{importing ? "Importando..." : "Elegir archivo Excel (.xlsx)"}</span>
+          <input type="file" accept=".xlsx,.xls" className="hidden" disabled={importing}
+            onChange={(e) => importBD(e.target.files?.[0] ?? null)} />
+        </label>
+        {importMsg && (
+          <p className={`text-sm mt-3 ${importMsg.ok ? "text-green-600" : "text-red-600"}`}>{importMsg.text}</p>
+        )}
       </section>
 
       {/* Nuevo sector */}

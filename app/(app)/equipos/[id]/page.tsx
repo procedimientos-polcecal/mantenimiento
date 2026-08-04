@@ -35,6 +35,13 @@ export default async function EquipoPage({ params }: { params: Promise<{ id: str
 
   if (!equipo) notFound();
 
+  // Referencia del tipo de equipo (specs típicas)
+  let tipo = null;
+  if (equipo.tipo_id) {
+    const { data } = await supabase.from("equipment_types").select("*").eq("tipo_id", equipo.tipo_id).single();
+    tipo = data ?? null;
+  }
+
   const canEdit = appUser?.role === "admin_sistema" || appUser?.role === "administrador";
 
   return (
@@ -42,6 +49,7 @@ export default async function EquipoPage({ params }: { params: Promise<{ id: str
       equipo={equipo}
       sectors={sectors ?? []}
       historial={historial ?? []}
+      tipo={tipo}
       canEdit={canEdit}
       userId={user.id}
     />

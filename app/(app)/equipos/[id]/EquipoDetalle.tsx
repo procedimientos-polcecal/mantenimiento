@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import InfoTip from "@/app/components/InfoTip";
 
 const OT_ESTADO: Record<string, { label: string; color: string; bg: string; dot: string }> = {
   ATRASADO:   { label: "Atrasado",   color: "#DC2626", bg: "#FEF2F2", dot: "#EF4444" },
@@ -81,10 +82,11 @@ const FICHA_GROUPS: { title: string; fields: FichaField[] }[] = [
 ];
 const FICHA_KEYS = FICHA_GROUPS.flatMap((g) => g.fields.map((f) => f.key));
 
-export default function EquipoDetalle({ equipo, sectors, historial, canEdit, userId }: {
+export default function EquipoDetalle({ equipo, sectors, historial, tipo, canEdit, userId }: {
   equipo: any;
   sectors: any[];
   historial: any[];
+  tipo?: any;
   canEdit: boolean;
   userId: string;
 }) {
@@ -282,6 +284,12 @@ export default function EquipoDetalle({ equipo, sectors, historial, canEdit, use
           >
             Repuestos
           </Link>
+          <Link
+            href={`/equipos/${equipo.id}/componentes`}
+            className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            Componentes
+          </Link>
 
           {/* Status badge — clickable for admins */}
           {canEdit ? (
@@ -459,6 +467,29 @@ export default function EquipoDetalle({ equipo, sectors, historial, canEdit, use
           </div>
         )}
       </section>
+
+      {/* Tipo de equipo (referencia) */}
+      {tipo && (
+        <section>
+          <h2 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2" style={{ fontFamily: "'Syne', sans-serif" }}>
+            Tipo: {tipo.nombre_tipo}
+            <InfoTip text="Datos de referencia del tipo de equipo (valores típicos). No son los del equipo puntual — sirven de guía para mantenimiento: lubricante, rodamientos, frecuencias recomendadas." />
+          </h2>
+          <div className="rounded-xl border border-gray-200 bg-white p-5 space-y-1.5">
+            {tipo.categoria && <RefRow label="Categoría" value={tipo.categoria} />}
+            {tipo.descripcion_funcion && <RefRow label="Función" value={tipo.descripcion_funcion} />}
+            {tipo.accionamiento && <RefRow label="Accionamiento" value={tipo.accionamiento} />}
+            {(tipo.rodamiento_lado_motor || tipo.rodamiento_lado_carga) && (
+              <RefRow label="Rodamientos típicos" value={[tipo.rodamiento_lado_motor, tipo.rodamiento_lado_carga].filter(Boolean).join(" / ")} />
+            )}
+            {tipo.lubricante_tipo && <RefRow label="Lubricante" value={[tipo.lubricante_tipo, tipo.lubricante_marca_ref].filter(Boolean).join(" — ")} />}
+            {tipo.frecuencia_lubricacion && <RefRow label="Frec. lubricación" value={tipo.frecuencia_lubricacion} />}
+            {tipo.freq_inspeccion_visual && <RefRow label="Frec. inspección" value={tipo.freq_inspeccion_visual} />}
+            {tipo.freq_revision_mayor && <RefRow label="Frec. revisión mayor" value={tipo.freq_revision_mayor} />}
+            {tipo.notas_tecnicas && <RefRow label="Notas técnicas" value={tipo.notas_tecnicas} />}
+          </div>
+        </section>
+      )}
 
       {/* Status history */}
       {historial.length > 0 && (
@@ -652,6 +683,15 @@ function Row({ label, value }: { label: string; value: string }) {
     <div className="px-4 py-3 flex gap-4">
       <span className="text-sm text-gray-500 w-32 shrink-0">{label}</span>
       <span className="text-sm text-gray-900">{value}</span>
+    </div>
+  );
+}
+
+function RefRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex gap-3 text-sm">
+      <span className="text-gray-400 w-40 shrink-0">{label}</span>
+      <span className="text-gray-800">{value}</span>
     </div>
   );
 }
