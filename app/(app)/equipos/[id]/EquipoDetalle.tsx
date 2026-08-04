@@ -38,6 +38,49 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string; bo
 // Requieren justificación al cambiar a este estado
 const REQUIRES_REASON = new Set(["EN_MANTENIMIENTO", "EN_REPARACION", "STANDBY", "FUERA_DE_SERVICIO", "DADO_DE_BAJA"]);
 
+// Ficha técnica — campos agrupados (basado en la BD de equipos)
+type FichaField = { key: string; label: string; type?: "text" | "int" | "num" | "date" };
+const FICHA_GROUPS: { title: string; fields: FichaField[] }[] = [
+  { title: "Identificación", fields: [
+    { key: "tipo_equipo", label: "Tipo de equipo" },
+    { key: "marca", label: "Marca" },
+    { key: "modelo", label: "Modelo" },
+    { key: "nro_serie", label: "N° de serie" },
+    { key: "anio_fabricacion", label: "Año fabricación", type: "int" },
+    { key: "anio_instalacion", label: "Año instalación", type: "int" },
+    { key: "origen_equipo", label: "Origen" },
+  ]},
+  { title: "Proceso y ubicación", fields: [
+    { key: "descripcion_proceso", label: "Descripción del proceso" },
+    { key: "ubicacion_fisica", label: "Ubicación física" },
+    { key: "nivel_altura_m", label: "Altura (m)", type: "num" },
+    { key: "horas_marcha", label: "Horas de marcha", type: "num" },
+  ]},
+  { title: "Eléctrico / Motor", fields: [
+    { key: "tension_v", label: "Tensión (V)" },
+    { key: "intensidad_nominal_a", label: "Intensidad nominal (A)", type: "num" },
+    { key: "rpm_motor", label: "RPM motor", type: "int" },
+    { key: "fp_cos_phi", label: "Cos φ (FP)", type: "num" },
+  ]},
+  { title: "Transmisión", fields: [
+    { key: "relacion_reduccion", label: "Relación de reducción" },
+    { key: "rpm_salida", label: "RPM salida", type: "int" },
+  ]},
+  { title: "Rodamientos", fields: [
+    { key: "rodamiento_motor_de", label: "Motor lado DE" },
+    { key: "rodamiento_motor_nde", label: "Motor lado NDE" },
+    { key: "rodamiento_carga", label: "Lado carga" },
+    { key: "rodamiento_otro", label: "Otro" },
+  ]},
+  { title: "Repuestos y relevamiento", fields: [
+    { key: "proveedor_repuesto_critico", label: "Proveedor repuesto crítico" },
+    { key: "fecha_ultimo_relevamiento", label: "Último relevamiento", type: "date" },
+    { key: "relevado_por", label: "Relevado por" },
+    { key: "foto_registro_url", label: "Foto (URL)" },
+  ]},
+];
+const FICHA_KEYS = FICHA_GROUPS.flatMap((g) => g.fields.map((f) => f.key));
+
 export default function EquipoDetalle({ equipo, sectors, historial, canEdit, userId }: {
   equipo: any;
   sectors: any[];
@@ -135,6 +178,17 @@ export default function EquipoDetalle({ equipo, sectors, historial, canEdit, use
     setForm((f) => ({ ...f, [key]: value }));
   }
 
+  // Ficha técnica
+  const [ficha, setFicha] = useState<Record<string, any>>(() => {
+    const init: Record<string, any> = {};
+    for (const k of FICHA_KEYS) init[k] = equipo[k] ?? "";
+    return init;
+  });
+  function fichaField(key: string, value: string) {
+    setFicha((f) => ({ ...f, [key]: value }));
+  }
+  const hasFicha = FICHA_KEYS.some((k) => equipo[k] != null && equipo[k] !== "");
+
   // ── Status change ────────────────────────────────────────────────────────
   function openStatusModal() {
     setNewStatus(equipo.status);
@@ -186,6 +240,7 @@ export default function EquipoDetalle({ equipo, sectors, historial, canEdit, use
         description: form.description.trim() || null,
         criticality: form.criticality,
         notes:       form.notes.trim() || null,
+        ficha,
       }),
     });
     const data = await res.json();
@@ -348,6 +403,62 @@ export default function EquipoDetalle({ equipo, sectors, historial, canEdit, use
           </div>
         </div>
       )}
+
+      {/* Ficha técnica */}
+      <section>
+        <h2 className="text-sm font-semibold text-gray-700 mb-2" style={{ fontFamily: "'Syne', sans-serif" }}>Ficha técnica</h2>
+
+        {editing ? (
+          <div className="rounded-xl border border-gray-200 bg-white p-5 space-y-5">
+            {FICHA_GROUPS.map((g) => (
+              <div key={g.title}>
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">{g.title}</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {g.fields.map((fl) => (
+                    <Field key={fl.key} label={fl.label}>
+                      <input
+                        type={fl.type === "date" ? "date" : fl.type === "int" || fl.type === "num" ? "number" : "text"}
+                        step={fl.type === "num" ? "any" : undefined}
+                        value={ficha[fl.key] ?? ""}
+                        onChange={(e) => fichaField(fl.key, e.target.value)}
+                        className="input" placeholder="—" />
+                    </Field>
+                  ))}
+                </div>
+              </div>
+            ))}
+            <p className="text-xs text-gray-400">Los cambios se guardan con el botón «Guardar» de arriba.</p>
+          </div>
+        ) : hasFicha ? (
+          <div className="rounded-xl border border-gray-200 bg-white p-5 space-y-4">
+            {FICHA_GROUPS.map((g) => {
+              const rows = g.fields.filter((fl) => equipo[fl.key] != null && equipo[fl.key] !== "");
+              if (rows.length === 0) return null;
+              return (
+                <div key={g.title}>
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">{g.title}</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5">
+                    {rows.map((fl) => (
+                      <div key={fl.key} className="flex justify-between gap-3 text-sm">
+                        <span className="text-gray-400">{fl.label}</span>
+                        <span className="text-gray-800 text-right">
+                          {fl.key === "foto_registro_url"
+                            ? <a href={equipo[fl.key]} target="_blank" rel="noreferrer" className="text-blue-600 underline">Ver foto</a>
+                            : String(equipo[fl.key])}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="rounded-xl border border-dashed border-gray-200 py-6 text-center text-sm text-gray-400">
+            Sin ficha técnica cargada.{canEdit && " Tocá «Editar» para completarla."}
+          </div>
+        )}
+      </section>
 
       {/* Status history */}
       {historial.length > 0 && (

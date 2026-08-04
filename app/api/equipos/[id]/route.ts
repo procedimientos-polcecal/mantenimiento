@@ -45,7 +45,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
 
   // ── Full field update ────────────────────────────────────────────────────
-  const { name, code, sector_id, power_kw, description, criticality, notes, status, old_status } = body;
+  const { name, code, sector_id, power_kw, description, criticality, notes, status, old_status, ficha } = body;
 
   const payload: any = {
     name: name?.trim(), code: code?.trim(), sector_id,
@@ -54,6 +54,20 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     criticality, notes: notes?.trim() || null,
   };
   if (status) payload.status = status;
+
+  // Ficha técnica (campos opcionales de la BD de equipos)
+  if (ficha && typeof ficha === "object") {
+    const TEXT = ["tipo_equipo", "descripcion_proceso", "marca", "modelo", "nro_serie",
+      "tension_v", "relacion_reduccion", "rodamiento_motor_de", "rodamiento_motor_nde",
+      "rodamiento_carga", "rodamiento_otro", "ubicacion_fisica", "origen_equipo",
+      "proveedor_repuesto_critico", "relevado_por", "foto_registro_url"];
+    const INT = ["anio_fabricacion", "anio_instalacion", "rpm_motor", "rpm_salida"];
+    const NUM = ["intensidad_nominal_a", "fp_cos_phi", "nivel_altura_m", "horas_marcha"];
+    for (const k of TEXT) if (k in ficha) payload[k] = (ficha[k] ?? "").toString().trim() || null;
+    for (const k of INT)  if (k in ficha) payload[k] = ficha[k] === "" || ficha[k] == null ? null : parseInt(ficha[k], 10) || null;
+    for (const k of NUM)  if (k in ficha) payload[k] = ficha[k] === "" || ficha[k] == null ? null : Number(ficha[k]) || null;
+    if ("fecha_ultimo_relevamiento" in ficha) payload.fecha_ultimo_relevamiento = ficha.fecha_ultimo_relevamiento || null;
+  }
 
   const { error: upErr } = await admin.from("equipment").update(payload).eq("id", id);
   if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });
