@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 import NuevaOTModal from "./NuevaOTModal";
+import RepuestosOTModal from "./RepuestosOTModal";
 import { useConfirm } from "@/app/components/ConfirmProvider";
 import InfoTip from "@/app/components/InfoTip";
 
@@ -414,6 +415,7 @@ function OTDetail({ order: o, canEdit, onChangeEstado }: {
   order: any; canEdit: boolean; onChangeEstado: (id: string, estado: string) => void;
 }) {
   const ESTADO_OPTIONS = ["POR_HACER", "EN_PROCESO", "REALIZADO", "ATRASADO"];
+  const [showParts, setShowParts] = useState(false);
   return (
     <div className="px-4 pb-4 pt-2 bg-gray-50 border-t border-gray-100 space-y-3">
       <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-2">
@@ -435,6 +437,16 @@ function OTDetail({ order: o, canEdit, onChangeEstado }: {
           <p className="text-sm text-gray-800">{o.descripcion}</p>
         </div>
       )}
+
+      <div>
+        <button onClick={() => setShowParts(true)}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-white transition-colors">
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
+          Repuestos necesarios
+        </button>
+      </div>
+      {showParts && <RepuestosOTModal order={o} onClose={() => setShowParts(false)} />}
+
       {canEdit && (
         <div className="flex items-center gap-2 pt-1 flex-wrap">
           <span className="text-xs text-gray-500 font-medium">Cambiar estado:</span>
