@@ -63,6 +63,52 @@ function tabForArea(area: string): string {
   return OS_TABS.find((t) => osNorm(t) === n) ?? "OTRA";
 }
 
+function colLetter(i: number): string {
+  let s = "";
+  for (i += 1; i > 0; i = Math.floor((i - 1) / 26)) s = String.fromCharCode(65 + ((i - 1) % 26)) + s;
+  return s;
+}
+
+// PATCH /api/ordenes-servicio — cambiar el estado de una OS
+export async function PATCH(request: Request) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  const { data: caller } = await supabase.from("app_users").select("role").eq("id", user.id).single();
+  if (!["admin_sistema", "administrador"].includes(caller?.role ?? "")) {
+    return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
+  }
+
+  const { id, estado } = await request.json();
+  if (!id || !estado?.trim()) return NextResponse.json({ error: "Datos inválidos" }, { status: 400 });
+
+  const admin = createAdminClient();
+  const { data: updated, error } = await admin
+    .from("ordenes_servicio").update({ estado: estado.trim(), synced_at: new Date().toISOString() })
+    .eq("id", id).select().single();
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Escribir el estado en la columna ESTADO de la pestaña (best-effort)
+  let sheets_error: string | null = null;
+  try {
+    if (SHEET_ID && updated.sheets_tab && updated.sheets_row) {
+      const token = await getAccessToken();
+      const hr = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(updated.sheets_tab)}!1:1`,
+        { headers: { Authorization: `Bearer ${token}` } });
+      const header: string[] = ((await hr.json()).values?.[0] ?? []).map(osNorm);
+      const estadoCol = header.findIndex((h) => OS_HEADER_ALIASES.estado.some((a) => osNorm(a) === h));
+      if (estadoCol >= 0) {
+        const range = `${encodeURIComponent(updated.sheets_tab)}!${colLetter(estadoCol)}${updated.sheets_row}`;
+        const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${range}?valueInputOption=USER_ENTERED`,
+          { method: "PUT", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ values: [[estado.trim()]] }) });
+        if (!res.ok) sheets_error = `Sheets ${res.status}`;
+      }
+    }
+  } catch (e: any) { sheets_error = e.message; }
+
+  return NextResponse.json({ data: updated, sheets_error });
+}
+
 // POST /api/ordenes-servicio — crear OS (y agregarla a la planilla)
 export async function POST(request: Request) {
   const supabase = await createClient();

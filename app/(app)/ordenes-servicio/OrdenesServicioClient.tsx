@@ -7,6 +7,7 @@ import InfoTip from "@/app/components/InfoTip";
 const AREAS = ["Mantenimiento", "Taller Vial", "Producción", "Laboratorio", "Almacén", "Inversiones", "Despacho", "Cantera", "Otra"];
 const EMPRESAS = ["Polcecal", "Polysan", "Ambas"];
 const PRIORIDADES = ["URGENTE", "1 SEMANA", "NORMAL", "LEVE"];
+const ESTADOS_OS = ["PENDIENTE", "APROBADO", "ACEPTADO", "EN CURSO", "RECHAZADO", "REALIZADO", "ANULADO"];
 
 function estadoColor(raw: string) {
   const v = (raw ?? "").toLowerCase();
@@ -63,6 +64,18 @@ export default function OrdenesServicioClient({ equipment, canEdit, canSync }: {
     if (res.ok) { setSyncMsg(`✓ ${d.synced} OS sincronizadas`); setLastSync(new Date().toISOString()); load(); }
     else        { setSyncMsg(`Error: ${d.error}`); }
     setSyncing(false);
+  }
+
+  const [estadoBusy, setEstadoBusy] = useState<string | null>(null);
+  async function changeEstado(o: any, estado: string) {
+    if (estado === o.estado) return;
+    setEstadoBusy(o.id);
+    const res = await fetch("/api/ordenes-servicio", {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: o.id, estado }),
+    });
+    setEstadoBusy(null);
+    if (res.ok) { setRows((rs) => rs.map((r) => (r.id === o.id ? { ...r, estado } : r))); }
   }
 
   async function crear(e: React.FormEvent) {
@@ -166,6 +179,18 @@ export default function OrdenesServicioClient({ equipment, canEdit, canSync }: {
                       {o.observaciones && <div className="col-span-2 md:col-span-3"><D label="Observaciones" v={o.observaciones} /></div>}
                       {o.imagen && <div className="col-span-2 md:col-span-3"><a href={o.imagen} target="_blank" rel="noreferrer" className="text-xs text-blue-600 underline">Ver imagen adjunta</a></div>}
                       {o.comparativa && o.comparativa !== "LINK" && <div className="col-span-2 md:col-span-3"><a href={o.comparativa} target="_blank" rel="noreferrer" className="text-xs text-blue-600 underline">Comparativa</a></div>}
+                      {canEdit && (
+                        <div className="col-span-2 md:col-span-3 flex items-center gap-2 pt-1 flex-wrap">
+                          <span className="text-xs text-gray-500 font-medium">Estado:</span>
+                          <select value={ESTADOS_OS.includes((o.estado ?? "").toUpperCase()) ? (o.estado ?? "").toUpperCase() : ""}
+                            onChange={(e) => changeEstado(o, e.target.value)} disabled={estadoBusy === o.id}
+                            className="rounded-lg border border-gray-200 px-2.5 py-1 text-xs outline-none focus:border-amber-400 disabled:opacity-50">
+                            {!ESTADOS_OS.includes((o.estado ?? "").toUpperCase()) && <option value="">{o.estado ?? "— actual —"}</option>}
+                            {ESTADOS_OS.map((s) => <option key={s} value={s}>{s}</option>)}
+                          </select>
+                          {estadoBusy === o.id && <span className="text-xs text-gray-400">Guardando...</span>}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
