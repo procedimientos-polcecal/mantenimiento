@@ -112,7 +112,7 @@ export default function Nav({ role }: { role?: string | null }) {
         {/* Nav links */}
         <nav style={{ flex: 1, padding: "12px 10px", overflowY: "auto" }}>
           {[...links, ...(role === "admin_sistema" ? adminLinks : [])].map((l) => {
-            const active = pathname.startsWith(l.href);
+            const active = pathname === l.href || pathname.startsWith(l.href + "/");
             const Icon = l.icon;
             return (
               <Link

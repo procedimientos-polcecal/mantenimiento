@@ -193,7 +193,9 @@ export async function runAvisosSync(): Promise<number> {
 }
 
 // ── Sync Órdenes de Servicio (múltiples pestañas por área) ──────────────────────
+// SERVICIOS es la hoja maestra (llegan todas las OS); las de área la enriquecen.
 export const OS_TABS = [
+  "SERVICIOS",
   "MANTENIMIENTO", "TALLER VIAL", "PRODUCCIÓN", "LABORATORIO",
   "ALMACÉN", "INVERSIONES", "DESPACHO", "CANTERA", "OTRA",
 ];
@@ -250,6 +252,9 @@ export async function runOrdenesServicioSync(): Promise<number> {
     };
     const idx: Record<string, number> = {};
     for (const key of Object.keys(OS_HEADER_ALIASES)) idx[key] = colOf(key);
+    // En todas estas hojas la 1ª columna es el N° OS (en SERVICIOS el encabezado
+    // viene raro), así que si no se detectó por nombre, se usa la columna 0.
+    if (idx.os_number < 0) idx.os_number = 0;
 
     const val = (row: string[], key: string) => {
       const i = idx[key];

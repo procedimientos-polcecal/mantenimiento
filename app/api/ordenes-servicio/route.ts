@@ -139,7 +139,8 @@ export async function POST(request: Request) {
     if (eq) { equipment_id = eq.id; sector_id = sector_id ?? eq.sector_id; }
   }
 
-  const tab = tabForArea(b.area);
+  // Las OS nuevas se cargan en la hoja maestra SERVICIOS (después se filtran por área)
+  const tab = "SERVICIOS";
   const record: any = {
     os_number, fecha: new Date().toISOString().slice(0, 10),
     area: b.area.trim(), sector_raw: b.sector_raw?.trim() || null, sector_id,
@@ -181,6 +182,8 @@ export async function POST(request: Request) {
         }
         return "";
       });
+      // La 1ª columna es siempre el N° OS (en SERVICIOS el encabezado viene raro)
+      if (row.length > 0) row[0] = os_number;
       const appendRes = await fetch(
         `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(tab)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
         { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ values: [row] }) }
