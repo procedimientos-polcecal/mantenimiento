@@ -146,6 +146,8 @@ export default function ConfiguracionClient({ sectors, plants }: {
             desc="Crear, editar o desactivar usuarios, cambiar roles y contraseñas." />
           <ConfigLink href="/equipos" title="Equipos"
             desc="Editar datos de equipos, estado, criticidad, sector e importar desde Excel." />
+          <ConfigLink href="/configuracion/tipos" title="Tipos de equipo"
+            desc="Crear o editar los tipos de equipo y sus datos de referencia (lubricante, rodamientos, frecuencias)." />
         </div>
       </section>
 
