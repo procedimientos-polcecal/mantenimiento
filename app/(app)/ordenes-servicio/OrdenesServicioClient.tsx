@@ -1,0 +1,222 @@
+"use client";
+
+import { useEffect, useState, useCallback } from "react";
+import { useConfirm } from "@/app/components/ConfirmProvider";
+import InfoTip from "@/app/components/InfoTip";
+
+const AREAS = ["Mantenimiento", "Taller Vial", "Producción", "Laboratorio", "Almacén", "Inversiones", "Despacho", "Cantera", "Otra"];
+const EMPRESAS = ["Polcecal", "Polysan", "Ambas"];
+const PRIORIDADES = ["URGENTE", "1 SEMANA", "NORMAL", "LEVE"];
+
+function estadoColor(raw: string) {
+  const v = (raw ?? "").toLowerCase();
+  if (v.includes("acept") || v.includes("aprob") || v.includes("realiz")) return { c: "#16A34A", b: "#F0FDF4" };
+  if (v.includes("pend") || v.includes("curso") || v.includes("proces"))  return { c: "#B45309", b: "#FFFBEB" };
+  if (v.includes("rechaz") || v.includes("anul"))                          return { c: "#DC2626", b: "#FEF2F2" };
+  return { c: "#64748B", b: "#F1F5F9" };
+}
+
+const EMPTY = {
+  area: "Mantenimiento", equipment_id: "", equipo_raw: "", sector_raw: "",
+  descripcion: "", detalle_extra: "", prioridad: "NORMAL", empresa: "Polcecal",
+  proveedor_elegido: "", estado: "PENDIENTE", observaciones: "",
+};
+
+export default function OrdenesServicioClient({ equipment, canEdit, canSync }: {
+  equipment: any[]; canEdit: boolean; canSync: boolean;
+}) {
+  const confirm = useConfirm();
+  const [rows, setRows]       = useState<any[]>([]);
+  const [count, setCount]     = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [areaFilter, setAreaFilter] = useState("");
+  const [search, setSearch]   = useState("");
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState("");
+  const [lastSync, setLastSync] = useState<string | null>(null);
+  const [showNew, setShowNew] = useState(false);
+  const [form, setForm]       = useState({ ...EMPTY });
+  const [saving, setSaving]   = useState(false);
+  const [error, setError]     = useState("");
+  const [expanded, setExpanded] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const params = new URLSearchParams();
+    if (areaFilter) params.set("area", areaFilter);
+    if (search)     params.set("q", search);
+    const res = await fetch(`/api/ordenes-servicio?${params}`);
+    const json = await res.json();
+    setRows(json.data ?? []); setCount(json.count ?? 0);
+    setLoading(false);
+  }, [areaFilter, search]);
+
+  useEffect(() => { load(); }, [load]);
+  useEffect(() => { fetch("/api/ordenes-servicio/sync").then(r => r.json()).then(d => setLastSync(d.last_sync)); }, []);
+
+  async function sync() {
+    const ok = await confirm({ title: "Sincronizar órdenes de servicio", message: "Se traerán las OS desde todas las pestañas de la planilla de Google Sheets. ¿Sincronizar?", confirmText: "Sincronizar" });
+    if (!ok) return;
+    setSyncing(true); setSyncMsg("");
+    const res = await fetch("/api/ordenes-servicio/sync", { method: "POST" });
+    const d = await res.json();
+    if (res.ok) { setSyncMsg(`✓ ${d.synced} OS sincronizadas`); setLastSync(new Date().toISOString()); load(); }
+    else        { setSyncMsg(`Error: ${d.error}`); }
+    setSyncing(false);
+  }
+
+  async function crear(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form.descripcion.trim()) { setError("La descripción es obligatoria."); return; }
+    setSaving(true); setError("");
+    const eq = equipment.find((x) => x.id === form.equipment_id);
+    const res = await fetch("/api/ordenes-servicio", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...form,
+        equipo_raw: eq ? `${eq.code} – ${eq.name}` : form.equipo_raw,
+        sector_raw: eq?.sectors?.name ?? form.sector_raw,
+        sector_id:  eq?.sector_id ?? null,
+      }),
+    });
+    const d = await res.json();
+    setSaving(false);
+    if (!res.ok) { setError(d.error ?? "Error al crear"); return; }
+    setShowNew(false); setForm({ ...EMPTY }); load();
+  }
+
+  return (
+    <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-5">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+            Órdenes de Servicio
+            <InfoTip text="Pedidos de servicio o compra externa por área (proveedor, costo, orden de compra, estado). Se sincronizan con la planilla de Google Sheets (una pestaña por área). Podés filtrarlas por área y crear nuevas." />
+          </h1>
+          {lastSync && <p className="text-xs text-gray-400 mt-0.5">Última sync: {new Date(lastSync).toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" })}</p>}
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          {syncMsg && <span className={`text-sm ${syncMsg.startsWith("Error") ? "text-red-600" : "text-green-600"}`}>{syncMsg}</span>}
+          {canEdit && (
+            <button onClick={() => { setForm({ ...EMPTY }); setError(""); setShowNew(true); }}
+              className="flex items-center gap-2 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 transition-colors">+ Nueva OS</button>
+          )}
+          {canSync && (
+            <button onClick={sync} disabled={syncing} className="flex items-center gap-2 btn-primary disabled:opacity-50">
+              <svg className={`w-4 h-4 ${syncing ? "animate-spin" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              {syncing ? "Sincronizando..." : "Sync OS"}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Filtros por área */}
+      <div className="flex gap-2 flex-wrap">
+        {["", ...AREAS].map((a) => (
+          <button key={a || "todas"} onClick={() => setAreaFilter(a)}
+            className={`rounded-full px-3 py-1.5 text-xs font-semibold border transition-all ${areaFilter === a ? "bg-gray-900 text-white border-gray-900" : "bg-white text-gray-500 border-gray-200 hover:bg-gray-50"}`}>
+            {a || "Todas"}
+          </button>
+        ))}
+        <input value={search} onChange={(e) => setSearch(e.target.value)}
+          placeholder="Buscar N° OS, equipo, proveedor, descripción..."
+          className="w-full sm:w-64 sm:ml-auto rounded-lg border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-amber-400" />
+      </div>
+
+      {/* Lista */}
+      {loading ? (
+        <div className="text-center py-12 text-gray-400 text-sm">Cargando...</div>
+      ) : rows.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-gray-200 py-16 text-center">
+          <p className="text-gray-400 text-sm">{lastSync ? "No hay OS con esos filtros." : "Aún no se sincronizaron OS."}</p>
+        </div>
+      ) : (
+        <>
+          <p className="text-xs text-gray-400">{count} órdenes de servicio</p>
+          <div className="rounded-xl border border-gray-200 bg-white divide-y divide-gray-100 overflow-hidden">
+            {rows.map((o) => {
+              const est = estadoColor(o.estado);
+              const isOpen = expanded === o.id;
+              return (
+                <div key={o.id}>
+                  <button onClick={() => setExpanded(isOpen ? null : o.id)} className="w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-gray-50 transition-colors">
+                    <span className="text-xs font-mono font-bold text-gray-400 w-12 shrink-0">#{o.os_number}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">{o.descripcion ?? "—"}</p>
+                      <p className="text-xs text-gray-400 truncate">{[o.area, o.equipo_raw, o.proveedor_elegido].filter(Boolean).join(" · ")}</p>
+                    </div>
+                    {o.costo != null && <span className="text-xs text-gray-500 shrink-0 hidden md:block">${Number(o.costo).toLocaleString("es-AR")}</span>}
+                    {o.estado && <span className="shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full" style={{ color: est.c, background: est.b }}>{o.estado}</span>}
+                    <svg className={`w-4 h-4 text-gray-300 shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                  {isOpen && (
+                    <div className="px-4 pb-4 pt-1 bg-gray-50 border-t border-gray-100 grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-2 text-sm">
+                      <D label="Área" v={o.area} /><D label="Sector" v={o.sector_raw} /><D label="Equipo" v={o.equipo_raw} />
+                      <D label="Empresa" v={o.empresa} /><D label="Prioridad" v={o.prioridad} /><D label="Proveedor" v={o.proveedor_elegido} />
+                      <D label="Costo" v={o.costo != null ? `$${Number(o.costo).toLocaleString("es-AR")}` : null} />
+                      <D label="Orden de compra" v={o.tiene_orden_compra} /><D label="CUIT" v={o.cuit} />
+                      <D label="Fecha req." v={o.fecha_requerimiento ? new Date(o.fecha_requerimiento).toLocaleDateString("es-AR") : null} />
+                      <D label="Fecha realización" v={o.fecha_realizacion ? new Date(o.fecha_realizacion).toLocaleDateString("es-AR") : null} />
+                      {o.detalle_extra && <div className="col-span-2 md:col-span-3"><D label="Detalle" v={o.detalle_extra} /></div>}
+                      {o.observaciones && <div className="col-span-2 md:col-span-3"><D label="Observaciones" v={o.observaciones} /></div>}
+                      {o.imagen && <div className="col-span-2 md:col-span-3"><a href={o.imagen} target="_blank" rel="noreferrer" className="text-xs text-blue-600 underline">Ver imagen adjunta</a></div>}
+                      {o.comparativa && o.comparativa !== "LINK" && <div className="col-span-2 md:col-span-3"><a href={o.comparativa} target="_blank" rel="noreferrer" className="text-xs text-blue-600 underline">Comparativa</a></div>}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+
+      {/* Nueva OS */}
+      {showNew && (
+        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/40 p-4">
+          <form onSubmit={crear} className="w-full max-w-lg rounded-2xl bg-white p-6 space-y-3 shadow-xl max-h-[90vh] overflow-y-auto">
+            <h2 className="text-base font-bold text-gray-900">Nueva orden de servicio</h2>
+            <div className="grid grid-cols-2 gap-3">
+              <Fld label="Área"><select value={form.area} onChange={(e) => setForm({ ...form, area: e.target.value })} className="input">{AREAS.map((a) => <option key={a}>{a}</option>)}</select></Fld>
+              <Fld label="Empresa"><select value={form.empresa} onChange={(e) => setForm({ ...form, empresa: e.target.value })} className="input">{EMPRESAS.map((a) => <option key={a}>{a}</option>)}</select></Fld>
+            </div>
+            <Fld label="Equipo">
+              <select value={form.equipment_id} onChange={(e) => setForm({ ...form, equipment_id: e.target.value })} className="input">
+                <option value="">— Sin equipo / manual —</option>
+                {equipment.map((e: any) => <option key={e.id} value={e.id}>{e.code} — {e.name}</option>)}
+              </select>
+            </Fld>
+            {!form.equipment_id && (
+              <Fld label="Equipo (texto libre)"><input value={form.equipo_raw} onChange={(e) => setForm({ ...form, equipo_raw: e.target.value })} className="input" placeholder="Opcional" /></Fld>
+            )}
+            <Fld label="Descripción *"><textarea value={form.descripcion} onChange={(e) => setForm({ ...form, descripcion: e.target.value })} rows={2} className="input resize-none" /></Fld>
+            <Fld label="Detalle extra"><textarea value={form.detalle_extra} onChange={(e) => setForm({ ...form, detalle_extra: e.target.value })} rows={2} className="input resize-none" /></Fld>
+            <div className="grid grid-cols-2 gap-3">
+              <Fld label="Prioridad"><select value={form.prioridad} onChange={(e) => setForm({ ...form, prioridad: e.target.value })} className="input">{PRIORIDADES.map((p) => <option key={p}>{p}</option>)}</select></Fld>
+              <Fld label="Proveedor elegido"><input value={form.proveedor_elegido} onChange={(e) => setForm({ ...form, proveedor_elegido: e.target.value })} className="input" /></Fld>
+            </div>
+            <Fld label="Observaciones"><input value={form.observaciones} onChange={(e) => setForm({ ...form, observaciones: e.target.value })} className="input" /></Fld>
+            {error && <p className="text-sm text-red-600">{error}</p>}
+            <div className="flex gap-2 pt-1">
+              <button type="submit" disabled={saving} className="btn-primary disabled:opacity-50">{saving ? "Guardando..." : "Crear OS"}</button>
+              <button type="button" onClick={() => setShowNew(false)} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Cancelar</button>
+            </div>
+            <p className="text-xs text-gray-400">Se agrega también a la pestaña «{form.area}» de la planilla.</p>
+          </form>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function D({ label, v }: { label: string; v?: string | null }) {
+  if (!v) return null;
+  return <div><p className="text-xs text-gray-400">{label}</p><p className="text-sm text-gray-700">{v}</p></div>;
+}
+function Fld({ label, children }: { label: string; children: React.ReactNode }) {
+  return <div className="space-y-1"><label className="block text-xs font-medium text-gray-600">{label}</label>{children}</div>;
+}

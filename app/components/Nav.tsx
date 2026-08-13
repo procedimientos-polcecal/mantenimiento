@@ -14,6 +14,7 @@ const links = [
   { href: "/avisos",         label: "Avisos",           icon: IconAviso },
   { href: "/ejecuciones",    label: "Ejecuciones",      icon: IconExec },
   { href: "/ordenes",        label: "Órdenes de Trabajo", icon: IconOT },
+  { href: "/ordenes-servicio", label: "Órdenes de Servicio", icon: IconOS },
   { href: "/planificacion",  label: "Planificación",      icon: IconPlan },
   { href: "/produccion",     label: "Producción",       icon: IconProd },
   { href: "/historial",      label: "Historial",        icon: IconHist },
@@ -233,6 +234,13 @@ function IconOT({ active }: { active: boolean }) {
   return (
     <svg width="16" height="16" fill="none" stroke={active ? "#F59E0B" : "#475569"} strokeWidth="1.5" viewBox="0 0 24 24">
       <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+}
+function IconOS({ active }: { active: boolean }) {
+  return (
+    <svg width="16" height="16" fill="none" stroke={active ? "#F59E0B" : "#475569"} strokeWidth="1.5" viewBox="0 0 24 24">
+      <path d="M9 7h6m-6 4h6m-6 4h4M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z" strokeLinecap="round" strokeLinejoin="round"/>
     </svg>
   );
 }

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { runWorkOrdersSync, runAvisosSync } from "@/lib/sheets-sync";
+import { runWorkOrdersSync, runAvisosSync, runOrdenesServicioSync } from "@/lib/sheets-sync";
 
 // GET /api/cron/sync — lo invoca Vercel Cron cada 30 min.
 // Vercel manda Authorization: Bearer <CRON_SECRET> si la variable está seteada.
@@ -18,6 +18,8 @@ export async function GET(request: Request) {
   catch (e: any) { result.work_orders_error = e.message; }
   try { result.avisos = await runAvisosSync(); }
   catch (e: any) { result.avisos_error = e.message; }
+  try { result.ordenes_servicio = await runOrdenesServicioSync(); }
+  catch (e: any) { result.os_error = e.message; }
 
   return NextResponse.json({ ok: true, ...result, at: new Date().toISOString() });
 }

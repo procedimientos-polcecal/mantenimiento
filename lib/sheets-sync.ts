@@ -191,3 +191,123 @@ export async function runAvisosSync(): Promise<number> {
   }
   return synced;
 }
+
+// ── Sync Órdenes de Servicio (múltiples pestañas por área) ──────────────────────
+export const OS_TABS = [
+  "MANTENIMIENTO", "TALLER VIAL", "PRODUCCIÓN", "LABORATORIO",
+  "ALMACÉN", "INVERSIONES", "DESPACHO", "CANTERA", "OTRA",
+];
+
+export const osNorm = (s: any) =>
+  (s ?? "").toString().normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .trim().toUpperCase().replace(/\./g, "").replace(/\s+/g, " ");
+const norm = osNorm;
+
+// Alias de encabezados → clave interna
+export const OS_HEADER_ALIASES: Record<string, string[]> = {
+  os_number:           ["N OS", "N° OS", "NRO OS", "N  OS"],
+  fecha:               ["FECHA"],
+  area:                ["AREA"],
+  sector_raw:          ["SECTOR"],
+  equipo_raw:          ["EQUIPO"],
+  descripcion:         ["DESCRIPCION"],
+  fecha_requerimiento: ["FECHA DE REQ", "FECHA DE REQUERIMIENTO"],
+  detalle_extra:       ["DETALLE EXTRA"],
+  imagen:              ["IMAGEN"],
+  prioridad:           ["PRIORIDAD"],
+  empresa:             ["EMPRESA"],
+  comparativa:         ["COMPARATIVA"],
+  proveedor_elegido:   ["PROVEEDOR ELEGIDO"],
+  estado:              ["ESTADO"],
+  cuit:                ["CUIT"],
+  tiene_orden_compra:  ["TIENE ORDEN DE COMPRA"],
+  costo:               ["COSTO SIN IVA", "COSTO + IVA", "COSTO"],
+  fecha_realizacion:   ["FECHA DE REALIZACION"],
+  observaciones:       ["OBSERVACIONES EXTRA", "OBSERVACIONES"],
+};
+
+export async function runOrdenesServicioSync(): Promise<number> {
+  const SHEET_ID = process.env.GOOGLE_SHEETS_OS_ID ?? "";
+  if (!SHEET_ID) throw new Error("GOOGLE_SHEETS_OS_ID no configurado");
+
+  const { admin, codeMap, sectorNameMap } = await buildMaps();
+  const records: any[] = [];
+
+  for (const tab of OS_TABS) {
+    let rows: string[][];
+    try { rows = await fetchSheet(SHEET_ID, tab); }
+    catch { continue; } // pestaña inexistente → se ignora
+    if (rows.length < 2) continue;
+
+    // Mapa clave interna → índice de columna, según el encabezado de esta pestaña
+    const header = rows[0].map(norm);
+    const colOf = (key: string) => {
+      for (const alias of OS_HEADER_ALIASES[key]) {
+        const i = header.indexOf(norm(alias));
+        if (i >= 0) return i;
+      }
+      return -1;
+    };
+    const idx: Record<string, number> = {};
+    for (const key of Object.keys(OS_HEADER_ALIASES)) idx[key] = colOf(key);
+
+    const val = (row: string[], key: string) => {
+      const i = idx[key];
+      return i >= 0 ? row[i] : undefined;
+    };
+
+    for (let r = 1; r < rows.length; r++) {
+      const row = rows[r];
+      const osNum = Number(val(row, "os_number"));
+      if (!osNum || isNaN(osNum)) continue;
+
+      const equipoRaw  = (val(row, "equipo_raw") ?? "").toString().trim();
+      const equipoCode = extractCode(equipoRaw);
+      const equipEntry = equipoCode ? codeMap.get(equipoCode) : null;
+      const sectorRaw  = (val(row, "sector_raw") ?? "").toString().trim();
+      const costoRaw   = val(row, "costo");
+
+      records.push({
+        os_number:          osNum,
+        fecha:              excelDateToISO(val(row, "fecha")),
+        area:               (val(row, "area") ?? "").toString().trim() || tab,
+        sector_raw:         sectorRaw || null,
+        sector_id:          equipEntry?.sector_id ?? sectorNameMap.get(sectorRaw.toLowerCase()) ?? null,
+        equipo_raw:         equipoRaw || null,
+        equipo_code:        equipoCode,
+        equipment_id:       equipEntry?.id ?? null,
+        descripcion:        val(row, "descripcion") ?? null,
+        fecha_requerimiento: excelDateToISO(val(row, "fecha_requerimiento")),
+        detalle_extra:      val(row, "detalle_extra") ?? null,
+        imagen:             val(row, "imagen") ?? null,
+        prioridad:          val(row, "prioridad") ?? null,
+        empresa:            val(row, "empresa") ?? null,
+        comparativa:        val(row, "comparativa") ?? null,
+        proveedor_elegido:  val(row, "proveedor_elegido") ?? null,
+        estado:             val(row, "estado") ?? null,
+        cuit:               (val(row, "cuit") ?? "").toString().trim() || null,
+        tiene_orden_compra: (val(row, "tiene_orden_compra") ?? "").toString().trim() || null,
+        costo:              costoRaw ? Number(costoRaw) || null : null,
+        fecha_realizacion:  excelDateToISO(val(row, "fecha_realizacion")),
+        observaciones:      val(row, "observaciones") ?? null,
+        sheets_tab:         tab,
+        sheets_row:         r + 1,
+        synced_at:          new Date().toISOString(),
+      });
+    }
+  }
+
+  // Deduplicar por os_number (si aparece en más de una pestaña, gana la última)
+  const byNum = new Map<number, any>();
+  for (const rec of records) byNum.set(rec.os_number, rec);
+  const deduped = [...byNum.values()];
+
+  let synced = 0;
+  for (let i = 0; i < deduped.length; i += 500) {
+    const batch = deduped.slice(i, i + 500);
+    const { error } = await admin.from("ordenes_servicio").upsert(batch, { onConflict: "os_number" });
+    if (error) throw error;
+    synced += batch.length;
+  }
+  return synced;
+}
