@@ -182,13 +182,13 @@ export default function OrdenesServicioClient({ equipment, canEdit, canSync }: {
                       {canEdit && (
                         <div className="col-span-2 md:col-span-3 flex items-center gap-2 pt-1 flex-wrap">
                           <span className="text-xs text-gray-500 font-medium">Estado:</span>
+                          {estadoBusy === o.id && <span className="text-xs text-gray-400">Guardando...</span>}
                           <select value={ESTADOS_OS.includes((o.estado ?? "").toUpperCase()) ? (o.estado ?? "").toUpperCase() : ""}
                             onChange={(e) => changeEstado(o, e.target.value)} disabled={estadoBusy === o.id}
-                            className="rounded-lg border border-gray-200 px-2.5 py-1 text-xs outline-none focus:border-amber-400 disabled:opacity-50">
+                            className="ml-auto rounded-lg border border-gray-200 px-2.5 py-1 text-xs outline-none focus:border-amber-400 disabled:opacity-50">
                             {!ESTADOS_OS.includes((o.estado ?? "").toUpperCase()) && <option value="">{o.estado ?? "— actual —"}</option>}
                             {ESTADOS_OS.map((s) => <option key={s} value={s}>{s}</option>)}
                           </select>
-                          {estadoBusy === o.id && <span className="text-xs text-gray-400">Guardando...</span>}
                         </div>
                       )}
                     </div>
