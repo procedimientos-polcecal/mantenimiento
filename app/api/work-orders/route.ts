@@ -30,7 +30,8 @@ export async function GET(request: Request) {
         .order("ot_number", { ascending: false })
         .range((page - 1) * limit, page * limit - 1);
 
-  if (estado)       query = query.eq("estado", estado);
+  if (estado === "PENDIENTES") query = query.in("estado", ["POR_HACER", "EN_PROCESO", "ATRASADO"]);
+  else if (estado)             query = query.eq("estado", estado);
   if (equipment_id) query = query.eq("equipment_id", equipment_id);
   if (tipo === "correctivo")  query = query.ilike("tipo", "%correctiv%");
   if (tipo === "preventivo")  query = query.or("tipo.ilike.%prevent%,tipo.ilike.%program%");

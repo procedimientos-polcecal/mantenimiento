@@ -328,7 +328,7 @@ export default function DashboardClient({
         <KpiCard label="Total equipos"    value={total}         accent="#0F172A" href={equiposHref()} />
         <KpiCard label="Operativos"       value={operativos}    accent="#22C55E" sub={`${pctOperativo}% del total`} href={equiposHref({ status: "OPERATIVO" })} />
         <KpiCard label="OTs atrasadas"    value={otAtrasadas}   accent={otAtrasadas > 0 ? "#EF4444" : "#22C55E"} href="/ordenes?estado=ATRASADO" />
-        <KpiCard label="OTs pendientes"   value={otPendientes}  accent="#F59E0B" href="/ordenes" />
+        <KpiCard label="OTs pendientes"   value={otPendientes}  accent="#F59E0B" href="/ordenes?estado=PENDIENTES" />
       </div>
 
       {/* Charts */}

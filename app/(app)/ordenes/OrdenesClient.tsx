@@ -10,6 +10,7 @@ import InfoTip from "@/app/components/InfoTip";
 
 const ESTADOS = [
   { value: "",           label: "Todos",      color: "#64748B", bg: "#F8FAFC", dot: "#94A3B8" },
+  { value: "PENDIENTES", label: "Pendientes", color: "#B45309", bg: "#FFFBEB", dot: "#F59E0B" },
   { value: "ATRASADO",   label: "Atrasado",   color: "#DC2626", bg: "#FEF2F2", dot: "#EF4444" },
   { value: "EN_PROCESO", label: "En proceso", color: "#1D4ED8", bg: "#EFF6FF", dot: "#3B82F6" },
   { value: "POR_HACER",  label: "Por hacer",  color: "#B45309", bg: "#FFFBEB", dot: "#F59E0B" },
