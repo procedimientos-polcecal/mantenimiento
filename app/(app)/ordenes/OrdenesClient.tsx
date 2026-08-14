@@ -202,12 +202,16 @@ export default function OrdenesClient({
 
   const listOrders = sortMode === "manual" ? manualList : sortedOrders;
 
-  // Kanban groups — cada columna con sus items cargados y su total real
-  const kanbanGroups = ESTADOS.slice(1).map(e => ({
-    ...e,
-    items: kanbanData[e.value]?.items ?? [],
-    count: kanbanData[e.value]?.count ?? 0,
-  }));
+  // Kanban groups — una columna por estado real (independiente de los chips
+  // de filtro de la lista, que incluyen pseudo-filtros como "Pendientes").
+  const kanbanGroups = KANBAN_ESTADOS.map(value => {
+    const e = ESTADOS.find(x => x.value === value) ?? { value, label: value, color: "#64748B", bg: "#F8FAFC", dot: "#94A3B8" };
+    return {
+      ...e,
+      items: kanbanData[value]?.items ?? [],
+      count: kanbanData[value]?.count ?? 0,
+    };
+  });
 
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-5">
