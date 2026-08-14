@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import NuevaOTModal from "./NuevaOTModal";
 import RepuestosOTModal from "./RepuestosOTModal";
+import RegistrarOTModal from "./RegistrarOTModal";
 import { useConfirm } from "@/app/components/ConfirmProvider";
 import InfoTip from "@/app/components/InfoTip";
 
@@ -121,21 +122,12 @@ export default function OrdenesClient({
     setSyncing(false);
   }
 
-  async function changeEstado(id: string, estado: string) {
-    const meta = estadoMeta(estado);
-    const ok = await confirm({
-      title: "Cambiar estado de la OT",
-      message: `La orden pasará al estado "${meta.label}". El cambio también se escribe en la planilla de Google Sheets. ¿Confirmás?`,
-      confirmText: "Cambiar estado",
-    });
-    if (!ok) return;
-    await fetch("/api/work-orders", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, estado }),
-    });
-    if (view === "kanban") loadKanban();
-    else load();
+  // Al elegir un nuevo estado se abre el modal de registro (ejecución + operarios)
+  const [regModal, setRegModal] = useState<{ order: any; estado: string } | null>(null);
+  function openRegistrar(order: any, estado: string) { setRegModal({ order, estado }); }
+  function onRegistroDone() {
+    setRegModal(null);
+    if (view === "kanban") loadKanban(); else load();
   }
 
   const totalPages = Math.ceil(count / 50);
@@ -310,7 +302,7 @@ export default function OrdenesClient({
                     </div>
                   )}
                   {col.items.map((o) => (
-                    <KanbanCard key={o.id} order={o} canEdit={canEdit} onChangeEstado={changeEstado} />
+                    <KanbanCard key={o.id} order={o} canEdit={canEdit} onRegistrar={openRegistrar} />
                   ))}
                   {col.count > col.items.length && (
                     <div className="text-center text-xs text-gray-400 py-1">
@@ -380,7 +372,7 @@ export default function OrdenesClient({
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                       </svg>
                     </button>
-                    {isOpen && <OTDetail order={o} canEdit={canEdit} onChangeEstado={changeEstado} />}
+                    {isOpen && <OTDetail order={o} canEdit={canEdit} onRegistrar={openRegistrar} />}
                   </div>
                 );
               })}
@@ -406,13 +398,22 @@ export default function OrdenesClient({
           onCreated={() => { setShowNew(false); load(); }}
         />
       )}
+
+      {regModal && (
+        <RegistrarOTModal
+          order={regModal.order}
+          estado={regModal.estado}
+          onClose={() => setRegModal(null)}
+          onDone={onRegistroDone}
+        />
+      )}
     </div>
   );
 }
 
 // ── Expanded detail row ───────────────────────────────────────────────────────
-function OTDetail({ order: o, canEdit, onChangeEstado }: {
-  order: any; canEdit: boolean; onChangeEstado: (id: string, estado: string) => void;
+function OTDetail({ order: o, canEdit, onRegistrar }: {
+  order: any; canEdit: boolean; onRegistrar: (order: any, estado: string) => void;
 }) {
   const ESTADO_OPTIONS = ["POR_HACER", "EN_PROCESO", "REALIZADO", "ATRASADO"];
   const [showParts, setShowParts] = useState(false);
@@ -453,7 +454,7 @@ function OTDetail({ order: o, canEdit, onChangeEstado }: {
           {ESTADO_OPTIONS.map((e) => {
             const m = estadoMeta(e);
             return (
-              <button key={e} onClick={() => onChangeEstado(o.id, e)}
+              <button key={e} onClick={() => onRegistrar(o, e)}
                 disabled={o.estado === e}
                 className="text-xs font-semibold px-2.5 py-1 rounded-full border transition-all disabled:opacity-40"
                 style={{ color: m.color, background: m.bg, borderColor: m.color + "44" }}>
@@ -468,8 +469,8 @@ function OTDetail({ order: o, canEdit, onChangeEstado }: {
 }
 
 // ── Kanban card ───────────────────────────────────────────────────────────────
-function KanbanCard({ order: o, canEdit, onChangeEstado }: {
-  order: any; canEdit: boolean; onChangeEstado: (id: string, estado: string) => void;
+function KanbanCard({ order: o, canEdit, onRegistrar }: {
+  order: any; canEdit: boolean; onRegistrar: (order: any, estado: string) => void;
 }) {
   const [menu, setMenu] = useState(false);
   const NEXT: Record<string, string[]> = {
@@ -497,7 +498,7 @@ function KanbanCard({ order: o, canEdit, onChangeEstado }: {
                 {nextOptions.map(e => {
                   const m = estadoMeta(e);
                   return (
-                    <button key={e} onClick={() => { onChangeEstado(o.id, e); setMenu(false); }}
+                    <button key={e} onClick={() => { onRegistrar(o, e); setMenu(false); }}
                       className="w-full text-left px-3 py-1.5 text-xs font-medium hover:bg-gray-50 flex items-center gap-2"
                       style={{ color: m.color }}>
                       <span className="w-1.5 h-1.5 rounded-full" style={{ background: m.dot }} />

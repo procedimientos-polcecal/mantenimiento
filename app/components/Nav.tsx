@@ -12,7 +12,6 @@ const links = [
   { href: "/dashboard",      label: "Dashboard",        icon: IconDash },
   { href: "/equipos",        label: "Equipos",          icon: IconEquip },
   { href: "/avisos",         label: "Avisos",           icon: IconAviso },
-  { href: "/ejecuciones",    label: "Ejecuciones",      icon: IconExec },
   { href: "/ordenes",        label: "Órdenes de Trabajo", icon: IconOT },
   { href: "/ordenes-servicio", label: "Órdenes de Servicio", icon: IconOS },
   { href: "/planificacion",  label: "Planificación",      icon: IconPlan },

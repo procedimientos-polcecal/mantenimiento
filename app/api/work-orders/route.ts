@@ -170,16 +170,20 @@ export async function PATCH(request: Request) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
-  const { id, estado } = await request.json();
+  const { id, estado, operario_1, operario_2, operario_3, horas, fecha_ejecucion } = await request.json();
   if (!id) return NextResponse.json({ error: "ID requerido" }, { status: 400 });
   if (!estado || !VALID_ESTADOS.includes(estado)) {
     return NextResponse.json({ error: "Estado inválido" }, { status: 400 });
   }
 
-  // Solo se permite actualizar el estado. No aceptamos otros campos del body
-  // para evitar escritura arbitraria de columnas (mass-assignment).
+  // Whitelist: estado + datos de ejecución (operarios/horas/fecha). Sin mass-assignment.
   const admin = createAdminClient();
-  const update = { estado, synced_at: new Date().toISOString() };
+  const update: any = { estado, synced_at: new Date().toISOString() };
+  if (operario_1 !== undefined) update.operario_1 = operario_1?.toString().trim() || null;
+  if (operario_2 !== undefined) update.operario_2 = operario_2?.toString().trim() || null;
+  if (operario_3 !== undefined) update.operario_3 = operario_3?.toString().trim() || null;
+  if (horas !== undefined) update.horas = horas === "" || horas == null ? null : Number(horas) || null;
+  if (fecha_ejecucion !== undefined) update.fecha_ejecucion = fecha_ejecucion || null;
 
   const { data: updated, error } = await admin
     .from("work_orders").update(update).eq("id", id).select().single();
@@ -292,19 +296,35 @@ function estadoToSheets(estado: string): string {
   return map[estado] ?? estado;
 }
 
+function isoToExcelDateShort(iso: string | null): string {
+  if (!iso) return "";
+  return new Date(iso + (iso.length <= 10 ? "T12:00:00" : "")).toLocaleDateString("es-AR");
+}
+
 async function updateSheetRow(ot: any): Promise<void> {
   const SHEET_ID = process.env.GOOGLE_SHEETS_ID ?? "";
   const TAB      = process.env.GOOGLE_SHEETS_TAB ?? "OT";
   if (!SHEET_ID || !ot.sheets_row) return;
   const token = await getAccessToken();
-  // Only update the estado column (M) to avoid overwriting Sheets data not stored in DB
-  const range = `${encodeURIComponent(TAB)}!M${ot.sheets_row}`;
+  const row = ot.sheets_row;
+  const T = encodeURIComponent(TAB);
+
+  // Actualiza estado (M) y, si vienen, operarios (P,Q,R), horas (O) y fecha ejec. (J).
+  const data: { range: string; values: string[][] }[] = [
+    { range: `${T}!M${row}`, values: [[estadoToSheets(ot.estado)]] },
+  ];
+  if (ot.operario_1 !== undefined) data.push({ range: `${T}!P${row}`, values: [[ot.operario_1 ?? ""]] });
+  if (ot.operario_2 !== undefined) data.push({ range: `${T}!Q${row}`, values: [[ot.operario_2 ?? ""]] });
+  if (ot.operario_3 !== undefined) data.push({ range: `${T}!R${row}`, values: [[ot.operario_3 ?? ""]] });
+  if (ot.horas !== undefined && ot.horas !== null) data.push({ range: `${T}!O${row}`, values: [[String(ot.horas)]] });
+  if (ot.fecha_ejecucion) data.push({ range: `${T}!J${row}`, values: [[isoToExcelDateShort(ot.fecha_ejecucion)]] });
+
   const res = await fetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${range}?valueInputOption=USER_ENTERED`,
+    `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values:batchUpdate`,
     {
-      method: "PUT",
+      method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ values: [[estadoToSheets(ot.estado)]] }),
+      body: JSON.stringify({ valueInputOption: "USER_ENTERED", data }),
     }
   );
   if (!res.ok) {
