@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
+import { useSearchParams } from "next/navigation";
 import NuevaOTModal from "./NuevaOTModal";
 import RepuestosOTModal from "./RepuestosOTModal";
 import RegistrarOTModal from "./RegistrarOTModal";
@@ -43,13 +44,17 @@ export default function OrdenesClient({
   equipment: any[];
 }) {
   const confirm = useConfirm();
+  const searchParams = useSearchParams();
   const [orders, setOrders]     = useState<any[]>([]);
   const [count, setCount]       = useState(0);
   const [loading, setLoading]   = useState(true);
   const [syncing, setSyncing]   = useState(false);
   const [lastSync, setLastSync] = useState<string | null>(null);
   const [syncMsg, setSyncMsg]   = useState("");
-  const [estadoFilter, setEstadoFilter] = useState("");
+  const [estadoFilter, setEstadoFilter] = useState(searchParams.get("estado") ?? "");
+  // Filtros de drill-down desde el dashboard (tipo de trabajo / ejecución).
+  const [tipoFilter, setTipoFilter]   = useState(searchParams.get("tipo") ?? "");
+  const [quienFilter, setQuienFilter] = useState(searchParams.get("quien") ?? "");
   const [search, setSearch]     = useState("");
   const [page, setPage]         = useState(1);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -72,13 +77,15 @@ export default function OrdenesClient({
     if (view === "list" && sortMode !== "numero") params.set("pendientes", "1");
     else params.set("page", String(page));
     if (estadoFilter) params.set("estado", estadoFilter);
+    if (tipoFilter)   params.set("tipo", tipoFilter);
+    if (quienFilter)  params.set("quien", quienFilter);
     if (search)       params.set("q", search);
     const res = await fetch(`/api/work-orders?${params}`);
     const json = await res.json();
     setOrders(json.data ?? []);
     setCount(json.count ?? (json.data?.length ?? 0));
     setLoading(false);
-  }, [page, estadoFilter, search, sortMode, view]);
+  }, [page, estadoFilter, tipoFilter, quienFilter, search, sortMode, view]);
 
   const KANBAN_ESTADOS = ["ATRASADO", "EN_PROCESO", "POR_HACER", "REALIZADO"];
   const loadKanban = useCallback(async () => {
@@ -254,6 +261,24 @@ export default function OrdenesClient({
           </div>
         </div>
       </div>
+
+      {/* Filtro de drill-down activo (tipo/quien, desde el dashboard) */}
+      {(tipoFilter || quienFilter) && (
+        <div className="flex flex-wrap items-center gap-2">
+          {tipoFilter && (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 border border-blue-200 px-3 py-1 text-xs font-semibold text-blue-700">
+              Tipo: {tipoFilter === "correctivo" ? "Correctivo" : "Preventivo"}
+              <button onClick={() => { setTipoFilter(""); setPage(1); }} className="text-blue-400 hover:text-blue-700" title="Quitar filtro">×</button>
+            </span>
+          )}
+          {quienFilter && (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-violet-50 border border-violet-200 px-3 py-1 text-xs font-semibold text-violet-700">
+              Ejecución: {quienFilter.charAt(0).toUpperCase() + quienFilter.slice(1)}
+              <button onClick={() => { setQuienFilter(""); setPage(1); }} className="text-violet-400 hover:text-violet-700" title="Quitar filtro">×</button>
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Filters (list only) */}
       {view === "list" && (

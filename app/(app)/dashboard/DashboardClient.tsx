@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend,
@@ -159,6 +160,17 @@ export default function DashboardClient({
   const pctOperativo = total > 0 ? Math.round((operativos / total) * 100) : 0;
   const filterLabel = sectorFilter !== "TODOS" ? sectorFilter : plantFilter !== "TODAS" ? plantFilter : null;
 
+  // Drill-down: /equipos preservando el filtro de planta/sector activo del dashboard.
+  const equiposHref = (extra: Record<string, string> = {}) => {
+    const p = new URLSearchParams();
+    if (plantFilter !== "TODAS") p.set("planta", plantFilter);
+    if (sectorFilter !== "TODOS") p.set("sector", sectorFilter);
+    for (const [k, v] of Object.entries(extra)) if (v) p.set(k, v);
+    const qs = p.toString();
+    return `/equipos${qs ? `?${qs}` : ""}`;
+  };
+  const [donutActive, setDonutActive] = useState<number | null>(null);
+
   // ── Sector status modal handlers ────────────────────────────────────────────
   function openStatusModal(sector: any) {
     setStatusModal({ sector });
@@ -313,10 +325,10 @@ export default function DashboardClient({
 
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <KpiCard label="Total equipos"    value={total}         accent="#0F172A" />
-        <KpiCard label="Operativos"       value={operativos}    accent="#22C55E" sub={`${pctOperativo}% del total`} />
-        <KpiCard label="OTs atrasadas"    value={otAtrasadas}   accent={otAtrasadas > 0 ? "#EF4444" : "#22C55E"} />
-        <KpiCard label="OTs pendientes"   value={otPendientes}  accent="#F59E0B" />
+        <KpiCard label="Total equipos"    value={total}         accent="#0F172A" href={equiposHref()} />
+        <KpiCard label="Operativos"       value={operativos}    accent="#22C55E" sub={`${pctOperativo}% del total`} href={equiposHref({ status: "OPERATIVO" })} />
+        <KpiCard label="OTs atrasadas"    value={otAtrasadas}   accent={otAtrasadas > 0 ? "#EF4444" : "#22C55E"} href="/ordenes?estado=ATRASADO" />
+        <KpiCard label="OTs pendientes"   value={otPendientes}  accent="#F59E0B" href="/ordenes" />
       </div>
 
       {/* Charts */}
@@ -334,23 +346,33 @@ export default function DashboardClient({
               <div className="w-44 h-44 shrink-0">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
-                    <Pie data={statusData} cx="50%" cy="50%" innerRadius={44} outerRadius={70} paddingAngle={2} dataKey="value" strokeWidth={0}>
-                      {statusData.map((d) => <Cell key={d.key} fill={d.color} />)}
+                    <Pie data={statusData} cx="50%" cy="50%" innerRadius={44} outerRadius={70} paddingAngle={2} dataKey="value" strokeWidth={0}
+                      onMouseEnter={(_: any, i: number) => setDonutActive(i)}
+                      onMouseLeave={() => setDonutActive(null)}
+                      onClick={(_: any, i: number) => router.push(equiposHref({ status: statusData[i].key }))}
+                      style={{ cursor: "pointer" }}>
+                      {statusData.map((d, i) => (
+                        <Cell key={d.key} fill={d.color}
+                          opacity={donutActive == null || donutActive === i ? 1 : 0.35} />
+                      ))}
                     </Pie>
                     <Tooltip formatter={(val: any, name: any) => [`${val} equipos`, name]}
                       contentStyle={{ borderRadius: 8, fontSize: 12, border: "1px solid #E2E8F0" }} />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
-              <div className="space-y-2 flex-1 min-w-0">
-                {statusData.map((d) => (
-                  <div key={d.key} className="flex items-center justify-between gap-2">
+              <div className="space-y-1 flex-1 min-w-0">
+                {statusData.map((d, i) => (
+                  <Link key={d.key} href={equiposHref({ status: d.key })}
+                    onMouseEnter={() => setDonutActive(i)} onMouseLeave={() => setDonutActive(null)}
+                    className="flex items-center justify-between gap-2 rounded-lg px-2 py-1 -mx-2 hover:bg-gray-50 transition-colors cursor-pointer"
+                    style={{ opacity: donutActive == null || donutActive === i ? 1 : 0.4 }}>
                     <div className="flex items-center gap-2 min-w-0">
                       <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: d.color }} />
                       <span className="text-xs text-gray-600 truncate">{d.name}</span>
                     </div>
                     <span className="text-xs font-semibold text-gray-900 shrink-0">{d.value}</span>
-                  </div>
+                  </Link>
                 ))}
               </div>
             </div>
@@ -363,7 +385,9 @@ export default function DashboardClient({
             {sectorFilter !== "TODOS" ? `Criticidad — ${sectorFilter}` : plantFilter !== "TODAS" ? `Criticidad por sector — ${plantFilter}` : "Criticidad por planta"}
           </h2>
           <ResponsiveContainer width="100%" height={176}>
-            <BarChart data={criticalityData} barSize={18} barCategoryGap="35%">
+            <BarChart data={criticalityData} barSize={18} barCategoryGap="35%"
+              onClick={(state: any) => { const l = state?.activeLabel; if (l) router.push(equiposHref({ criticidad: l })); }}
+              style={{ cursor: "pointer" }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
               <XAxis dataKey="criticidad" tick={{ fontSize: 11, fill: "#94A3B8" }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 11, fill: "#94A3B8" }} axisLine={false} tickLine={false} allowDecimals={false} />
@@ -392,7 +416,8 @@ export default function DashboardClient({
             const meta = OT_ESTADO_META[s.estado] ?? { label: s.estado, color: "#94A3B8" };
             const pct = otTotal > 0 ? Math.round((s.count / otTotal) * 100) : 0;
             return (
-              <div key={s.estado} className="bg-white rounded-xl border border-gray-200 p-4 relative overflow-hidden">
+              <Link key={s.estado} href={`/ordenes?estado=${s.estado}`}
+                className="bg-white rounded-xl border border-gray-200 p-4 relative overflow-hidden block hover:border-gray-300 hover:shadow-sm transition-all cursor-pointer">
                 <div className="absolute top-0 left-0 right-0 h-1" style={{ background: meta.color }} />
                 <div className="flex items-center gap-2 mb-2">
                   <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: meta.color }} />
@@ -400,7 +425,7 @@ export default function DashboardClient({
                 </div>
                 <div className="text-3xl font-bold text-gray-900" style={{ fontFamily: "'Syne', sans-serif" }}>{s.count}</div>
                 <div className="text-xs text-gray-400 mt-0.5">{pct}% del total</div>
-              </div>
+              </Link>
             );
           })}
         </div>
@@ -408,8 +433,10 @@ export default function DashboardClient({
 
       {/* Indicadores: tipo de trabajo y ejecución */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <IndicatorGroup title="Tipo de trabajo" tally={tipoTally} colors={TIPO_COLORS} />
-        <IndicatorGroup title="Ejecución del trabajo" tally={quienTally} colors={QUIEN_COLORS} />
+        <IndicatorGroup title="Tipo de trabajo" tally={tipoTally} colors={TIPO_COLORS}
+          hrefFor={(l) => l === "Correctivo" ? "/ordenes?tipo=correctivo" : l === "Preventivo" ? "/ordenes?tipo=preventivo" : null} />
+        <IndicatorGroup title="Ejecución del trabajo" tally={quienTally} colors={QUIEN_COLORS}
+          hrefFor={(l) => ["Propio", "Contratado", "Mixto"].includes(l) ? `/ordenes?quien=${l.toLowerCase()}` : null} />
       </div>
 
       {/* Execution trend */}
@@ -490,8 +517,9 @@ export default function DashboardClient({
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-function IndicatorGroup({ title, tally, colors }: {
+function IndicatorGroup({ title, tally, colors, hrefFor }: {
   title: string; tally: Record<string, number>; colors: Record<string, string>;
+  hrefFor?: (label: string) => string | null;
 }) {
   const entries = Object.entries(tally).filter(([, v]) => v > 0);
   const total = entries.reduce((a, [, v]) => a + v, 0);
@@ -508,8 +536,9 @@ function IndicatorGroup({ title, tally, colors }: {
           {entries.map(([label, value]) => {
             const color = colors[label] ?? "#94A3B8";
             const pct = Math.round((value / total) * 100);
-            return (
-              <div key={label}>
+            const href = hrefFor?.(label) ?? null;
+            const row = (
+              <>
                 <div className="flex items-center justify-between mb-1">
                   <div className="flex items-center gap-2">
                     <span className="w-2.5 h-2.5 rounded-full" style={{ background: color }} />
@@ -522,7 +551,12 @@ function IndicatorGroup({ title, tally, colors }: {
                 <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
                   <div className="h-full rounded-full" style={{ width: `${pct}%`, background: color }} />
                 </div>
-              </div>
+              </>
+            );
+            return href ? (
+              <Link key={label} href={href} className="block rounded-lg -mx-2 px-2 py-1 hover:bg-gray-50 transition-colors cursor-pointer">{row}</Link>
+            ) : (
+              <div key={label}>{row}</div>
             );
           })}
         </div>
@@ -531,15 +565,27 @@ function IndicatorGroup({ title, tally, colors }: {
   );
 }
 
-function KpiCard({ label, value, accent, sub }: { label: string; value: number; accent: string; sub?: string }) {
-  return (
-    <div className="bg-white rounded-xl border border-gray-200 p-4 relative overflow-hidden">
+function KpiCard({ label, value, accent, sub, href }: { label: string; value: number; accent: string; sub?: string; href?: string }) {
+  const inner = (
+    <>
       <div className="absolute top-0 left-0 right-0 h-0.5" style={{ background: accent }} />
       <div className="text-3xl font-bold text-gray-900" style={{ fontFamily: "'Syne', sans-serif" }}>{value}</div>
       <div className="text-xs text-gray-500 mt-1">{label}</div>
       {sub && <div className="text-xs mt-0.5" style={{ color: accent }}>{sub}</div>}
-    </div>
+    </>
   );
+  if (href) {
+    return (
+      <Link href={href}
+        className="bg-white rounded-xl border border-gray-200 p-4 relative overflow-hidden block hover:border-gray-300 hover:shadow-sm transition-all cursor-pointer">
+        {inner}
+        <span className="absolute bottom-2 right-2 text-gray-300">
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+        </span>
+      </Link>
+    );
+  }
+  return <div className="bg-white rounded-xl border border-gray-200 p-4 relative overflow-hidden">{inner}</div>;
 }
 
 // ── Ejecuciones por semana (interactivo) ───────────────────────────────────────

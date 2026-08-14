@@ -11,6 +11,8 @@ export async function GET(request: Request) {
   const estado       = searchParams.get("estado");
   const equipment_id = searchParams.get("equipment_id");
   const search       = searchParams.get("q");
+  const tipo         = searchParams.get("tipo");  // correctivo | preventivo
+  const quien        = searchParams.get("quien"); // propio | contratado | mixto
   const pendientes   = searchParams.get("pendientes"); // modo priorización
   const page         = Number(searchParams.get("page") ?? 1);
   const limit        = 50;
@@ -30,6 +32,11 @@ export async function GET(request: Request) {
 
   if (estado)       query = query.eq("estado", estado);
   if (equipment_id) query = query.eq("equipment_id", equipment_id);
+  if (tipo === "correctivo")  query = query.ilike("tipo", "%correctiv%");
+  if (tipo === "preventivo")  query = query.or("tipo.ilike.%prevent%,tipo.ilike.%program%");
+  if (quien === "propio")     query = query.or("quien.ilike.%propio%,quien.ilike.%interno%");
+  if (quien === "contratado") query = query.ilike("quien", "%contrat%");
+  if (quien === "mixto")      query = query.ilike("quien", "%mixto%");
   if (search) {
     // Sanitizar: quitar caracteres que rompen el filtro PostgREST (,()*\)
     const safe = search.replace(/[,()*\\%]/g, "").trim();

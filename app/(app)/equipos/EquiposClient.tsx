@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import * as XLSX from "xlsx";
 import InfoTip from "@/app/components/InfoTip";
 
@@ -26,10 +26,12 @@ export default function EquiposClient({ plants, sectors, equipment, canEdit }: {
   equipment: any[];
   canEdit?: boolean;
 }) {
+  const searchParams = useSearchParams();
   const [search, setSearch] = useState("");
-  const [filterPlant, setFilterPlant] = useState("");
-  const [filterSector, setFilterSector] = useState("");
-  const [filterStatus, setFilterStatus] = useState("");
+  const [filterPlant, setFilterPlant] = useState(searchParams.get("planta") ?? "");
+  const [filterSector, setFilterSector] = useState(searchParams.get("sector") ?? "");
+  const [filterStatus, setFilterStatus] = useState(searchParams.get("status") ?? "");
+  const [filterCriticality, setFilterCriticality] = useState(searchParams.get("criticidad") ?? "");
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<{ updated: number; created: number; errors: string[] } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -47,10 +49,11 @@ export default function EquiposClient({ plants, sectors, equipment, canEdit }: {
       if (filterPlant && e.sectors?.plants?.name !== filterPlant) return false;
       if (filterSector && e.sectors?.name !== filterSector) return false;
       if (filterStatus && e.status !== filterStatus) return false;
+      if (filterCriticality && e.criticality !== filterCriticality) return false;
       if (q && !e.name.toLowerCase().includes(q) && !e.code.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [equipment, filterPlant, filterSector, filterStatus, search]);
+  }, [equipment, filterPlant, filterSector, filterStatus, filterCriticality, search]);
 
   // ─── Export ───────────────────────────────────────────────────────────────
   function exportExcel() {
@@ -193,7 +196,7 @@ export default function EquiposClient({ plants, sectors, equipment, canEdit }: {
       )}
 
       {/* Filters */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
         <input
           type="text"
           placeholder="Buscar nombre o código..."
@@ -229,6 +232,16 @@ export default function EquiposClient({ plants, sectors, equipment, canEdit }: {
           <option value="">Todos los estados</option>
           {Object.entries(STATUS_LABELS).map(([k, v]) => (
             <option key={k} value={k}>{v.label}</option>
+          ))}
+        </select>
+        <select
+          value={filterCriticality}
+          onChange={(e) => setFilterCriticality(e.target.value)}
+          className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+        >
+          <option value="">Toda criticidad</option>
+          {["ALTA", "MEDIA", "BAJA"].map((c) => (
+            <option key={c} value={c}>{c}</option>
           ))}
         </select>
       </div>
