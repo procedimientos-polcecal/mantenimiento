@@ -6,8 +6,8 @@ import Link from "next/link";
 import InfoTip from "@/app/components/InfoTip";
 import { useConfirm } from "@/app/components/ConfirmProvider";
 
-export default function ConfiguracionClient({ sectors, plants, contratistas = [] }: {
-  sectors: any[]; plants: any[]; contratistas?: any[];
+export default function ConfiguracionClient({ sectors, plants, contratistas = [], operarios = [] }: {
+  sectors: any[]; plants: any[]; contratistas?: any[]; operarios?: any[];
 }) {
   const router = useRouter();
   const confirm = useConfirm();
@@ -35,6 +35,22 @@ export default function ConfiguracionClient({ sectors, plants, contratistas = []
     const ok = await confirm({ title: "Eliminar contratista", message: `Se quitará "${c.nombre}" de la lista.`, confirmText: "Eliminar", danger: true });
     if (!ok) return;
     await fetch(`/api/contratistas?id=${c.id}`, { method: "DELETE" });
+    router.refresh();
+  }
+
+  // Operarios (por posición: slot 1/2/3)
+  const [nuevoOperario, setNuevoOperario] = useState<Record<number, string>>({ 1: "", 2: "", 3: "" });
+  async function addOperario(slot: number) {
+    const nombre = (nuevoOperario[slot] ?? "").trim();
+    if (!nombre) return;
+    await fetch("/api/operarios", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ slot, nombre }) });
+    setNuevoOperario((p) => ({ ...p, [slot]: "" }));
+    router.refresh();
+  }
+  async function delOperario(o: any) {
+    const ok = await confirm({ title: "Eliminar operario", message: `Se quitará "${o.nombre}" de la posición ${o.slot}.`, confirmText: "Eliminar", danger: true });
+    if (!ok) return;
+    await fetch(`/api/operarios?id=${o.id}`, { method: "DELETE" });
     router.refresh();
   }
 
@@ -170,6 +186,36 @@ export default function ConfiguracionClient({ sectors, plants, contratistas = []
               {c.nombre}
               <button onClick={() => delContratista(c)} className="text-gray-400 hover:text-red-600" title="Eliminar">×</button>
             </span>
+          ))}
+        </div>
+      </section>
+
+      {/* Operarios */}
+      <section className="bg-white rounded-2xl border border-gray-200 p-5">
+        <h2 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2" style={{ fontFamily: "'Syne', sans-serif" }}>
+          Operarios
+          <InfoTip text="Opciones de los campos 'Operario 1/2/3' que aparecen al registrar una OT. Cada posición tiene su propia lista." />
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {[1, 2, 3].map((slot) => (
+            <div key={slot}>
+              <p className="text-xs font-medium text-gray-500 mb-2">Operario {slot}</p>
+              <div className="flex gap-2 mb-3">
+                <input value={nuevoOperario[slot] ?? ""} onChange={(e) => setNuevoOperario((p) => ({ ...p, [slot]: e.target.value }))}
+                  onKeyDown={(e) => { if (e.key === "Enter") addOperario(slot); }}
+                  placeholder="Nuevo..." className="input flex-1" />
+                <button onClick={() => addOperario(slot)} className="btn-primary">+</button>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {operarios.filter((o) => o.slot === slot).length === 0 && <p className="text-sm text-gray-400">Sin operarios.</p>}
+                {operarios.filter((o) => o.slot === slot).map((o) => (
+                  <span key={o.id} className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-sm text-gray-700">
+                    {o.nombre}
+                    <button onClick={() => delOperario(o)} className="text-gray-400 hover:text-red-600" title="Eliminar">×</button>
+                  </span>
+                ))}
+              </div>
+            </div>
           ))}
         </div>
       </section>

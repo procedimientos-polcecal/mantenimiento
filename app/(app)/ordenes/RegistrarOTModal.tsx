@@ -17,6 +17,7 @@ export default function RegistrarOTModal({ order, estado, onClose, onDone }: {
   const [op3, setOp3] = useState(order.operario_3 ?? "");
   const [contratista, setContratista] = useState(order.contratista ?? "");
   const [contratistas, setContratistas] = useState<any[]>([]);
+  const [operarios, setOperarios] = useState<any[]>([]);
 
   const [checklist, setChecklist] = useState<any>(null);
   const [responses, setResponses] = useState<Record<string, any>>({});
@@ -35,6 +36,7 @@ export default function RegistrarOTModal({ order, estado, onClose, onDone }: {
 
   useEffect(() => {
     fetch("/api/contratistas").then((r) => r.json()).then((d) => setContratistas(d.data ?? [])).catch(() => {});
+    fetch("/api/operarios").then((r) => r.json()).then((d) => setOperarios(d.data ?? [])).catch(() => {});
   }, []);
 
   function handlePhotos(files: FileList | null) {
@@ -125,9 +127,9 @@ export default function RegistrarOTModal({ order, estado, onClose, onDone }: {
         <div>
           <p className="text-xs font-medium text-gray-600 mb-1">Operarios que la realizaron</p>
           <div className="grid grid-cols-3 gap-2">
-            <input value={op1} onChange={(e) => setOp1(e.target.value)} placeholder="Operario 1" className="input" />
-            <input value={op2} onChange={(e) => setOp2(e.target.value)} placeholder="Operario 2" className="input" />
-            <input value={op3} onChange={(e) => setOp3(e.target.value)} placeholder="Operario 3" className="input" />
+            <OperarioSelect slot={1} value={op1} onChange={setOp1} operarios={operarios} />
+            <OperarioSelect slot={2} value={op2} onChange={setOp2} operarios={operarios} />
+            <OperarioSelect slot={3} value={op3} onChange={setOp3} operarios={operarios} />
           </div>
         </div>
 
@@ -201,4 +203,17 @@ export default function RegistrarOTModal({ order, estado, onClose, onDone }: {
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return <div className="space-y-1"><label className="block text-xs font-medium text-gray-600">{label}</label>{children}</div>;
+}
+
+function OperarioSelect({ slot, value, onChange, operarios }: {
+  slot: number; value: string; onChange: (v: string) => void; operarios: any[];
+}) {
+  const opciones = operarios.filter((o) => o.slot === slot);
+  return (
+    <select value={value} onChange={(e) => onChange(e.target.value)} className="input" aria-label={`Operario ${slot}`}>
+      <option value="">Operario {slot}</option>
+      {opciones.map((o) => <option key={o.id} value={o.nombre}>{o.nombre}</option>)}
+      {value && !opciones.some((o) => o.nombre === value) && <option value={value}>{value}</option>}
+    </select>
+  );
 }
