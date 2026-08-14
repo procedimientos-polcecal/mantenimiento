@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 
 type Part = { id: string; nombre: string; codigo: string | null; cantidad: string | null };
-type Avail = { disponible: boolean | null; match: any } | undefined;
+type Avail = { disponible: boolean | null; match: any; bajoMinimo?: boolean } | undefined;
 
 export default function RepuestosOTModal({ order, onClose }: { order: any; onClose: () => void }) {
   const [parts, setParts] = useState<Part[]>([]);
@@ -33,7 +33,7 @@ export default function RepuestosOTModal({ order, onClose }: { order: any; onClo
     const d = await res.json();
     setConfigured(d.configured !== false);
     const map: Record<string, Avail> = {};
-    for (const r of d.results ?? []) map[r.id] = { disponible: r.disponible, match: r.match };
+    for (const r of d.results ?? []) map[r.id] = { disponible: r.disponible, match: r.match, bajoMinimo: r.bajoMinimo };
     setAvail(map);
     setChecking(false);
   }, []);
@@ -123,13 +123,15 @@ export default function RepuestosOTModal({ order, onClose }: { order: any; onClo
                     </p>
                   </div>
                   {configured && (
-                    <span className="shrink-0 text-xs font-semibold px-2 py-1 rounded-full"
+                    <span className="shrink-0 text-xs font-semibold px-2 py-1 rounded-full text-right"
                       style={
-                        disp === true ? { color: "#16A34A", background: "#F0FDF4" }
+                        disp === true && a?.bajoMinimo ? { color: "#B45309", background: "#FFFBEB" }
+                        : disp === true ? { color: "#16A34A", background: "#F0FDF4" }
                         : disp === false ? { color: "#DC2626", background: "#FEF2F2" }
                         : { color: "#B45309", background: "#FFFBEB" }
                       }>
-                      {disp === true ? `✓ Disponible${a?.match?.stock != null ? ` (${a.match.stock})` : ""}`
+                      {disp === true && a?.bajoMinimo ? `⚠ Bajo mínimo (${a.match.stock})`
+                        : disp === true ? `✓ Disponible${a?.match?.stock != null ? ` (${a.match.stock})` : ""}`
                         : disp === false ? "✗ Falta — pedir"
                         : a?.match ? "En inventario (sin stock informado)" : "No encontrado"}
                     </span>

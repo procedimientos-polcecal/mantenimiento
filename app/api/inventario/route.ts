@@ -5,12 +5,13 @@ import { osNorm } from "@/lib/sheets-sync";
 const SHEET_ID = process.env.GOOGLE_SHEETS_INVENTARIO_ID ?? "";
 const TAB      = process.env.GOOGLE_SHEETS_INVENTARIO_TAB ?? "";
 
-// Alias de encabezados del inventario → clave interna
+// Alias de encabezados del inventario → clave interna (el primero que matchee gana)
 const ALIASES: Record<string, string[]> = {
   codigo:      ["CODIGO", "COD", "SKU", "ARTICULO", "ART", "ITEM", "N ITEM", "N ARTICULO"],
   descripcion: ["DESCRIPCION", "NOMBRE", "DETALLE", "REPUESTO", "PRODUCTO", "ARTICULO"],
-  stock:       ["STOCK", "CANTIDAD", "CANT", "EXISTENCIA", "DISPONIBLE", "SALDO", "EN STOCK"],
-  ubicacion:   ["UBICACION", "DEPOSITO", "ESTANTE", "LUGAR", "POSICION"],
+  stock:       ["STOCK ACTUAL", "STOCK", "CANTIDAD", "CANT", "EXISTENCIA", "DISPONIBLE", "SALDO", "EN STOCK"],
+  seguridad:   ["STOCK DE SEGURIDAD", "STOCK SEGURIDAD", "STOCK MINIMO", "MINIMO", "SS"],
+  ubicacion:   ["UBICACION", "DEPOSITO", "ESTANTE", "LUGAR", "POSICION", "PAÑOL"],
 };
 
 async function getAccessToken(): Promise<string> {
@@ -37,7 +38,7 @@ async function getAccessToken(): Promise<string> {
   return d.access_token;
 }
 
-type Item = { codigo: string; descripcion: string; stock: number | null; stockRaw: string; ubicacion: string };
+type Item = { codigo: string; descripcion: string; stock: number | null; stockRaw: string; seguridad: number | null; ubicacion: string };
 
 // Lee el inventario en vivo desde la planilla
 async function readInventory(): Promise<Item[]> {
@@ -55,7 +56,14 @@ async function readInventory(): Promise<Item[]> {
     for (const a of ALIASES[key]) { const i = header.indexOf(osNorm(a)); if (i >= 0) return i; }
     return -1;
   };
-  const idx = { codigo: colOf("codigo"), descripcion: colOf("descripcion"), stock: colOf("stock"), ubicacion: colOf("ubicacion") };
+  const idx = { codigo: colOf("codigo"), descripcion: colOf("descripcion"), stock: colOf("stock"), seguridad: colOf("seguridad"), ubicacion: colOf("ubicacion") };
+  const numAt = (row: string[], i: number) => {
+    if (i < 0) return null;
+    const raw = (row[i] ?? "").toString().trim();
+    if (raw === "") return null;
+    const n = Number(raw.replace(/\./g, "").replace(",", "."));
+    return isNaN(n) ? null : n;
+  };
 
   const items: Item[] = [];
   for (let r = 1; r < rows.length; r++) {
@@ -63,12 +71,11 @@ async function readInventory(): Promise<Item[]> {
     const codigo = idx.codigo >= 0 ? (row[idx.codigo] ?? "").toString().trim() : "";
     const descripcion = idx.descripcion >= 0 ? (row[idx.descripcion] ?? "").toString().trim() : "";
     if (!codigo && !descripcion) continue;
-    const stockRaw = idx.stock >= 0 ? (row[idx.stock] ?? "").toString().trim() : "";
-    const stockNum = stockRaw === "" ? null : Number(stockRaw.replace(",", ".")) ;
     items.push({
       codigo, descripcion,
-      stock: stockNum != null && !isNaN(stockNum) ? stockNum : null,
-      stockRaw,
+      stock: numAt(row, idx.stock),
+      stockRaw: idx.stock >= 0 ? (row[idx.stock] ?? "").toString().trim() : "",
+      seguridad: numAt(row, idx.seguridad),
       ubicacion: idx.ubicacion >= 0 ? (row[idx.ubicacion] ?? "").toString().trim() : "",
     });
   }
@@ -124,7 +131,8 @@ export async function POST(request: Request) {
       else if (name && byName.has(name)) match = byName.get(name)!;
       else if (name) match = inv.find((i) => i.descripcion.toLowerCase().includes(name)) ?? null; // parcial
       const disponible = match ? (match.stock == null ? null : match.stock > 0) : false;
-      return { ...it, match, disponible };
+      const bajoMinimo = !!(match && match.stock != null && match.seguridad != null && match.stock <= match.seguridad);
+      return { ...it, match, disponible, bajoMinimo };
     });
     return NextResponse.json({ configured: true, results });
   } catch (e: any) {
