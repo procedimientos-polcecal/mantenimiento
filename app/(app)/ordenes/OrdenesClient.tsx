@@ -124,7 +124,16 @@ export default function OrdenesClient({
 
   // Al elegir un nuevo estado se abre el modal de registro (ejecución + operarios)
   const [regModal, setRegModal] = useState<{ order: any; estado: string } | null>(null);
-  function openRegistrar(order: any, estado: string) { setRegModal({ order, estado }); }
+  async function openRegistrar(order: any, estado: string) {
+    // La ventana de registro (operarios/horas/checklist/fotos) solo aparece al marcar REALIZADO.
+    if (estado === "REALIZADO") { setRegModal({ order, estado }); return; }
+    // Otros estados: cambio directo, sin ventana de registro.
+    await fetch("/api/work-orders", {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: order.id, estado }),
+    });
+    if (view === "kanban") loadKanban(); else load();
+  }
   function onRegistroDone() {
     setRegModal(null);
     if (view === "kanban") loadKanban(); else load();
