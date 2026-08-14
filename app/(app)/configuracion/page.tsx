@@ -13,10 +13,11 @@ export default async function ConfiguracionPage() {
   // Solo administrador de sistema
   if (appUser?.role !== "admin_sistema") redirect("/dashboard");
 
-  const [{ data: sectors }, { data: plants }] = await Promise.all([
+  const [{ data: sectors }, { data: plants }, { data: contratistas }] = await Promise.all([
     supabase.from("sectors").select("id, name, plant_id, plants(name)").order("name"),
     supabase.from("plants").select("id, name").order("name"),
+    supabase.from("contratistas").select("id, nombre").order("nombre"),
   ]);
 
-  return <ConfiguracionClient sectors={sectors ?? []} plants={plants ?? []} />;
+  return <ConfiguracionClient sectors={sectors ?? []} plants={plants ?? []} contratistas={contratistas ?? []} />;
 }

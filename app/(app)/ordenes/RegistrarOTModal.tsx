@@ -15,6 +15,8 @@ export default function RegistrarOTModal({ order, estado, onClose, onDone }: {
   const [op1, setOp1] = useState(order.operario_1 ?? "");
   const [op2, setOp2] = useState(order.operario_2 ?? "");
   const [op3, setOp3] = useState(order.operario_3 ?? "");
+  const [contratista, setContratista] = useState(order.contratista ?? "");
+  const [contratistas, setContratistas] = useState<any[]>([]);
 
   const [checklist, setChecklist] = useState<any>(null);
   const [responses, setResponses] = useState<Record<string, any>>({});
@@ -30,6 +32,10 @@ export default function RegistrarOTModal({ order, estado, onClose, onDone }: {
       .eq("is_active", true).order("created_at", { ascending: false }).limit(1).maybeSingle()
       .then(({ data }) => setChecklist(data ?? null));
   }, [order.equipment_id]);
+
+  useEffect(() => {
+    fetch("/api/contratistas").then((r) => r.json()).then((d) => setContratistas(d.data ?? [])).catch(() => {});
+  }, []);
 
   function handlePhotos(files: FileList | null) {
     if (!files) return;
@@ -76,7 +82,7 @@ export default function RegistrarOTModal({ order, estado, onClose, onDone }: {
       method: "PATCH", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         id: order.id, estado,
-        operario_1: op1, operario_2: op2, operario_3: op3,
+        operario_1: op1, operario_2: op2, operario_3: op3, contratista,
         horas: duration ? Number(duration) : null,
         fecha_ejecucion: executedAt.slice(0, 10),
       }),
@@ -124,6 +130,14 @@ export default function RegistrarOTModal({ order, estado, onClose, onDone }: {
             <input value={op3} onChange={(e) => setOp3(e.target.value)} placeholder="Operario 3" className="input" />
           </div>
         </div>
+
+        <Field label="Contratista">
+          <select value={contratista} onChange={(e) => setContratista(e.target.value)} className="input">
+            <option value="">—</option>
+            {contratistas.map((c) => <option key={c.id} value={c.nombre}>{c.nombre}</option>)}
+            {contratista && !contratistas.some((c) => c.nombre === contratista) && <option value={contratista}>{contratista}</option>}
+          </select>
+        </Field>
 
         {/* Checklist */}
         {checklist?.items?.length > 0 && (

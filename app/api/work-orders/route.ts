@@ -170,18 +170,19 @@ export async function PATCH(request: Request) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
-  const { id, estado, operario_1, operario_2, operario_3, horas, fecha_ejecucion } = await request.json();
+  const { id, estado, operario_1, operario_2, operario_3, horas, fecha_ejecucion, contratista } = await request.json();
   if (!id) return NextResponse.json({ error: "ID requerido" }, { status: 400 });
   if (!estado || !VALID_ESTADOS.includes(estado)) {
     return NextResponse.json({ error: "Estado inválido" }, { status: 400 });
   }
 
-  // Whitelist: estado + datos de ejecución (operarios/horas/fecha). Sin mass-assignment.
+  // Whitelist: estado + datos de ejecución (operarios/horas/fecha/contratista). Sin mass-assignment.
   const admin = createAdminClient();
   const update: any = { estado, synced_at: new Date().toISOString() };
   if (operario_1 !== undefined) update.operario_1 = operario_1?.toString().trim() || null;
   if (operario_2 !== undefined) update.operario_2 = operario_2?.toString().trim() || null;
   if (operario_3 !== undefined) update.operario_3 = operario_3?.toString().trim() || null;
+  if (contratista !== undefined) update.contratista = contratista?.toString().trim() || null;
   if (horas !== undefined) update.horas = horas === "" || horas == null ? null : Number(horas) || null;
   if (fecha_ejecucion !== undefined) update.fecha_ejecucion = fecha_ejecucion || null;
 
@@ -313,6 +314,7 @@ async function updateSheetRow(ot: any): Promise<void> {
   const data: { range: string; values: string[][] }[] = [
     { range: `${T}!M${row}`, values: [[estadoToSheets(ot.estado)]] },
   ];
+  if (ot.contratista !== undefined) data.push({ range: `${T}!N${row}`, values: [[ot.contratista ?? ""]] });
   if (ot.operario_1 !== undefined) data.push({ range: `${T}!P${row}`, values: [[ot.operario_1 ?? ""]] });
   if (ot.operario_2 !== undefined) data.push({ range: `${T}!Q${row}`, values: [[ot.operario_2 ?? ""]] });
   if (ot.operario_3 !== undefined) data.push({ range: `${T}!R${row}`, values: [[ot.operario_3 ?? ""]] });

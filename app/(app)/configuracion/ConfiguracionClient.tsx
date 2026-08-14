@@ -6,8 +6,8 @@ import Link from "next/link";
 import InfoTip from "@/app/components/InfoTip";
 import { useConfirm } from "@/app/components/ConfirmProvider";
 
-export default function ConfiguracionClient({ sectors, plants }: {
-  sectors: any[]; plants: any[];
+export default function ConfiguracionClient({ sectors, plants, contratistas = [] }: {
+  sectors: any[]; plants: any[]; contratistas?: any[];
 }) {
   const router = useRouter();
   const confirm = useConfirm();
@@ -22,6 +22,21 @@ export default function ConfiguracionClient({ sectors, plants }: {
   const [newName, setNewName] = useState("");
   const [newPlant, setNewPlant] = useState("");
   const [error, setError]     = useState("");
+
+  // Contratistas
+  const [nuevoContratista, setNuevoContratista] = useState("");
+  async function addContratista() {
+    if (!nuevoContratista.trim()) return;
+    await fetch("/api/contratistas", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nombre: nuevoContratista.trim() }) });
+    setNuevoContratista("");
+    router.refresh();
+  }
+  async function delContratista(c: any) {
+    const ok = await confirm({ title: "Eliminar contratista", message: `Se quitará "${c.nombre}" de la lista.`, confirmText: "Eliminar", danger: true });
+    if (!ok) return;
+    await fetch(`/api/contratistas?id=${c.id}`, { method: "DELETE" });
+    router.refresh();
+  }
 
   // Import BD de equipos
   const [importing, setImporting] = useState(false);
@@ -133,6 +148,29 @@ export default function ConfiguracionClient({ sectors, plants }: {
             </div>
           ))}
           {sectors.length === 0 && <p className="text-sm text-gray-400 py-4">Sin sectores.</p>}
+        </div>
+      </section>
+
+      {/* Contratistas */}
+      <section className="bg-white rounded-2xl border border-gray-200 p-5">
+        <h2 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2" style={{ fontFamily: "'Syne', sans-serif" }}>
+          Contratistas
+          <InfoTip text="Opciones del campo 'Contratista' que aparece al registrar una OT. Se escriben en la columna CONTRATISTA de la planilla." />
+        </h2>
+        <div className="flex gap-2 mb-3">
+          <input value={nuevoContratista} onChange={(e) => setNuevoContratista(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") addContratista(); }}
+            placeholder="Nuevo contratista..." className="input flex-1" />
+          <button onClick={addContratista} className="btn-primary">Agregar</button>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {contratistas.length === 0 && <p className="text-sm text-gray-400">Sin contratistas cargados.</p>}
+          {contratistas.map((c) => (
+            <span key={c.id} className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-sm text-gray-700">
+              {c.nombre}
+              <button onClick={() => delContratista(c)} className="text-gray-400 hover:text-red-600" title="Eliminar">×</button>
+            </span>
+          ))}
         </div>
       </section>
 
