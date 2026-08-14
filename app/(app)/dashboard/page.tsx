@@ -26,10 +26,13 @@ export default async function DashboardPage() {
       .select("*, sector:sector_id(name, plants(name)), changed_by_user:changed_by(full_name)")
       .order("changed_at", { ascending: false })
       .limit(20),
+    // Ejecuciones de OT de las últimas 52 semanas (permite comparar 26 vs 26 previas).
     supabase.from("maintenance_executions")
-      .select("execution_status, executed_at")
+      .select("execution_status, executed_at, duration_hours, work_order:work_order_id(ot_number, equipo_raw, equipo_code)")
+      .not("work_order_id", "is", null)
+      .gte("executed_at", new Date(Date.now() - 7 * 52 * 24 * 60 * 60 * 1000).toISOString())
       .order("executed_at", { ascending: false })
-      .limit(60),
+      .limit(2000),
   ]);
 
   // ── Conteo de OTs por estado (count queries, sin traer todas las filas) ──────

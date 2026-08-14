@@ -142,20 +142,6 @@ export default function DashboardClient({
     return { criticalityData: data, criticalityKeys: plantNames, criticalityColors: PLANT_COLORS };
   }, [equipment, filteredEquipment, plantFilter, sectorFilter, plants, sectors]);
 
-  // Execution trend
-  const executionTrend = useMemo(() => {
-    const weeks: Record<string, number> = {};
-    for (const ex of recentExecutions) {
-      if (!ex.executed_at) continue;
-      const d = new Date(ex.executed_at);
-      const monday = new Date(d);
-      monday.setDate(d.getDate() - ((d.getDay() + 6) % 7));
-      const key = monday.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" });
-      weeks[key] = (weeks[key] ?? 0) + 1;
-    }
-    return Object.entries(weeks).slice(-8).map(([semana, cantidad]) => ({ semana, cantidad }));
-  }, [recentExecutions]);
-
   // OTs por estado (no se filtra por planta/sector: es global)
   const otTotal = useMemo(() => otStats.reduce((a, s) => a + s.count, 0), [otStats]);
   const otPendientes = useMemo(() =>
@@ -427,22 +413,7 @@ export default function DashboardClient({
       </div>
 
       {/* Execution trend */}
-      {executionTrend.length > 0 && (
-        <div className="bg-white rounded-2xl border border-gray-200 p-5">
-          <h2 className="text-sm font-semibold text-gray-700 mb-4" style={{ fontFamily: "'Syne', sans-serif" }}>
-            Ejecuciones por semana (últimas 8 semanas)
-          </h2>
-          <ResponsiveContainer width="100%" height={150}>
-            <BarChart data={executionTrend} barSize={28}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
-              <XAxis dataKey="semana" tick={{ fontSize: 11, fill: "#94A3B8" }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: "#94A3B8" }} axisLine={false} tickLine={false} allowDecimals={false} />
-              <Tooltip contentStyle={{ borderRadius: 8, fontSize: 12, border: "1px solid #E2E8F0" }} formatter={(v: any) => [`${v} ejecuciones`]} cursor={{ fill: "#F8FAFC" }} />
-              <Bar dataKey="cantidad" fill="#3B82F6" radius={[4,4,0,0]} name="Ejecuciones" />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      )}
+      <ExecutionTrendCard recentExecutions={recentExecutions} />
 
       {/* Sector status modal */}
       {statusModal && (
@@ -567,6 +538,227 @@ function KpiCard({ label, value, accent, sub }: { label: string; value: number; 
       <div className="text-3xl font-bold text-gray-900" style={{ fontFamily: "'Syne', sans-serif" }}>{value}</div>
       <div className="text-xs text-gray-500 mt-1">{label}</div>
       {sub && <div className="text-xs mt-0.5" style={{ color: accent }}>{sub}</div>}
+    </div>
+  );
+}
+
+// ── Ejecuciones por semana (interactivo) ───────────────────────────────────────
+
+const EXEC_STATUS_META: Record<string, { label: string; color: string }> = {
+  completado: { label: "Completado", color: "#22C55E" },
+  parcial:    { label: "Parcial",    color: "#F59E0B" },
+  cancelado:  { label: "Cancelado",  color: "#EF4444" },
+  otro:       { label: "Otro",       color: "#94A3B8" },
+};
+const RANGE_OPTIONS = [8, 12, 26];
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+function mondayOf(d: Date): Date {
+  const m = new Date(d);
+  m.setHours(0, 0, 0, 0);
+  m.setDate(m.getDate() - ((m.getDay() + 6) % 7)); // lunes de esa semana
+  return m;
+}
+function normStatus(s: string): string {
+  return ["completado", "parcial", "cancelado"].includes(s) ? s : "otro";
+}
+
+function ExecutionTrendCard({ recentExecutions }: { recentExecutions: any[] }) {
+  const [range, setRange] = useState(8);
+  const [hidden, setHidden] = useState<Set<string>>(new Set());
+  const [selectedKey, setSelectedKey] = useState<number | null>(null);
+
+  const { chart, currTotal, prevTotal, hasOtro } = useMemo(() => {
+    // Agrupa ejecuciones por lunes de su semana.
+    const buckets = new Map<number, any[]>();
+    for (const ex of recentExecutions) {
+      if (!ex.executed_at) continue;
+      const key = mondayOf(new Date(ex.executed_at)).getTime();
+      let arr = buckets.get(key);
+      if (!arr) { arr = []; buckets.set(key, arr); }
+      arr.push(ex);
+    }
+    const thisMonday = mondayOf(new Date());
+
+    // Ventana continua de `count` semanas, corrida `offset` semanas hacia atrás.
+    const buildWindow = (offset: number, count: number) => {
+      const rows: any[] = [];
+      for (let i = count - 1; i >= 0; i--) {
+        const start = new Date(thisMonday.getTime() - (offset + i) * WEEK_MS);
+        const items = buckets.get(start.getTime()) ?? [];
+        const row: any = {
+          key: start.getTime(),
+          label: start.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" }),
+          completado: 0, parcial: 0, cancelado: 0, otro: 0, hours: 0,
+          total: items.length,
+          items: items
+            .map((ex) => ({
+              status: normStatus(ex.execution_status ?? ""),
+              executed_at: ex.executed_at,
+              hours: ex.duration_hours,
+              ot_number: ex.work_order?.ot_number ?? null,
+              equipo: ex.work_order?.equipo_raw ?? ex.work_order?.equipo_code ?? null,
+            }))
+            .sort((a, b) => (a.executed_at < b.executed_at ? 1 : -1)),
+        };
+        for (const ex of items) {
+          row[normStatus(ex.execution_status ?? "")] += 1;
+          row.hours += Number(ex.duration_hours) || 0;
+        }
+        rows.push(row);
+      }
+      return rows;
+    };
+
+    const curr = buildWindow(0, range);
+    const prev = buildWindow(range, range);
+    const sum = (rows: any[]) => rows.reduce((a, r) => a + r.total, 0);
+    return {
+      chart: curr,
+      currTotal: sum(curr),
+      prevTotal: sum(prev),
+      hasOtro: curr.some((r) => r.otro > 0),
+    };
+  }, [recentExecutions, range]);
+
+  const series = ["completado", "parcial", "cancelado", ...(hasOtro ? ["otro"] : [])];
+  const topVisible = [...series].reverse().find((k) => !hidden.has(k));
+  const delta = prevTotal > 0 ? Math.round(((currTotal - prevTotal) / prevTotal) * 100) : null;
+  const selectedRow = selectedKey != null ? chart.find((r) => r.key === selectedKey) ?? null : null;
+
+  const toggle = (k: string) =>
+    setHidden((h) => { const n = new Set(h); n.has(k) ? n.delete(k) : n.add(k); return n; });
+
+  const totalAll = recentExecutions.length;
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-200 p-5">
+      {/* Cabecera: título + comparativa + selector de rango */}
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-1">
+        <div className="flex items-center gap-2">
+          <h2 className="text-sm font-semibold text-gray-700" style={{ fontFamily: "'Syne', sans-serif" }}>
+            Ejecuciones de OT por semana
+          </h2>
+          <InfoTip text="Ejecuciones registradas contra órdenes de trabajo, agrupadas por semana (lunes a domingo). Barras apiladas por resultado. Click en una semana para ver el detalle; click en la leyenda para ocultar un resultado." />
+        </div>
+        <div className="flex items-center gap-1 rounded-lg bg-gray-100 p-0.5">
+          {RANGE_OPTIONS.map((r) => (
+            <button key={r} onClick={() => { setRange(r); setSelectedKey(null); }}
+              className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors ${range === r ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>
+              {r} sem
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Resumen del período */}
+      <div className="flex items-center gap-3 mb-4 text-xs text-gray-500">
+        <span><span className="font-bold text-gray-900 text-sm">{currTotal}</span> en {range} semanas</span>
+        {delta != null && (
+          <span className="inline-flex items-center gap-1 font-semibold"
+            style={{ color: delta > 0 ? "#16A34A" : delta < 0 ? "#DC2626" : "#94A3B8" }}>
+            {delta > 0 ? "▲" : delta < 0 ? "▼" : "="} {Math.abs(delta)}%
+            <span className="font-normal text-gray-400">vs {range} previas ({prevTotal})</span>
+          </span>
+        )}
+      </div>
+
+      {totalAll === 0 ? (
+        <div className="h-36 flex items-center justify-center text-sm text-gray-400">Sin ejecuciones de OT registradas.</div>
+      ) : (
+        <>
+          {/* Leyenda clickeable */}
+          <div className="flex flex-wrap gap-3 mb-3">
+            {series.map((k) => {
+              const meta = EXEC_STATUS_META[k];
+              const off = hidden.has(k);
+              return (
+                <button key={k} onClick={() => toggle(k)}
+                  className={`inline-flex items-center gap-1.5 text-xs font-medium transition-opacity ${off ? "opacity-40" : ""}`}>
+                  <span className="w-2.5 h-2.5 rounded-full" style={{ background: meta.color }} />
+                  <span className={off ? "line-through text-gray-400" : "text-gray-600"}>{meta.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <ResponsiveContainer width="100%" height={190}>
+            <BarChart data={chart} barSize={range > 12 ? 14 : 26}
+              onClick={(state: any) => {
+                const idx = state?.activeTooltipIndex;
+                if (idx == null || !chart[idx]) return;
+                const key = chart[idx].key;
+                setSelectedKey((prev) => (prev === key ? null : key));
+              }}
+              style={{ cursor: "pointer" }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
+              <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#94A3B8" }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+              <YAxis tick={{ fontSize: 11, fill: "#94A3B8" }} axisLine={false} tickLine={false} allowDecimals={false} />
+              <Tooltip cursor={{ fill: "#F8FAFC" }} content={<ExecTooltip />} />
+              {series.map((k) => (
+                <Bar key={k} dataKey={k} stackId="a" fill={EXEC_STATUS_META[k].color}
+                  hide={hidden.has(k)} name={EXEC_STATUS_META[k].label}
+                  radius={k === topVisible ? [4, 4, 0, 0] : [0, 0, 0, 0]} />
+              ))}
+            </BarChart>
+          </ResponsiveContainer>
+
+          {/* Detalle de la semana seleccionada */}
+          {selectedRow && (
+            <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-3">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-semibold text-gray-700">
+                  Semana del {selectedRow.label} · {selectedRow.total} ejecución{selectedRow.total === 1 ? "" : "es"}
+                  {selectedRow.hours > 0 && <span className="font-normal text-gray-400"> · {selectedRow.hours}h</span>}
+                </p>
+                <button onClick={() => setSelectedKey(null)} className="text-gray-400 hover:text-gray-600 text-sm" title="Cerrar">×</button>
+              </div>
+              {selectedRow.items.length === 0 ? (
+                <p className="text-xs text-gray-400 py-2">Sin ejecuciones esa semana.</p>
+              ) : (
+                <div className="space-y-1 max-h-52 overflow-y-auto">
+                  {selectedRow.items.map((it: any, i: number) => {
+                    const meta = EXEC_STATUS_META[it.status];
+                    return (
+                      <div key={i} className="flex items-center gap-2 text-xs bg-white rounded-lg border border-gray-100 px-2.5 py-1.5">
+                        <span className="w-2 h-2 rounded-full shrink-0" style={{ background: meta.color }} title={meta.label} />
+                        {it.ot_number != null && <span className="font-mono text-gray-400 shrink-0">#{it.ot_number}</span>}
+                        <span className="text-gray-800 truncate flex-1">{it.equipo ?? "—"}</span>
+                        {it.hours != null && <span className="text-gray-400 shrink-0">{it.hours}h</span>}
+                        <span className="text-gray-400 shrink-0">{new Date(it.executed_at).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function ExecTooltip({ active, payload }: any) {
+  if (!active || !payload?.length) return null;
+  const row = payload[0]?.payload;
+  if (!row) return null;
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 shadow-sm text-xs">
+      <p className="font-semibold text-gray-700 mb-1">Semana del {row.label}</p>
+      {["completado", "parcial", "cancelado", "otro"].map((k) =>
+        row[k] > 0 ? (
+          <div key={k} className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full" style={{ background: EXEC_STATUS_META[k].color }} />
+            <span className="text-gray-500">{EXEC_STATUS_META[k].label}:</span>
+            <span className="font-semibold text-gray-800">{row[k]}</span>
+          </div>
+        ) : null
+      )}
+      <div className="mt-1 pt-1 border-t border-gray-100 text-gray-500">
+        Total: <span className="font-semibold text-gray-800">{row.total}</span>
+        {row.hours > 0 && <> · {row.hours}h</>}
+      </div>
     </div>
   );
 }
