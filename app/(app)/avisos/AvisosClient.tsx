@@ -34,6 +34,7 @@ export default function AvisosClient({ equipment, canEdit, canSync }: {
   const [loading, setLoading]   = useState(true);
   const [urgFilter, setUrgFilter] = useState("");
   const [search, setSearch]     = useState("");
+  const [page, setPage]         = useState(1);
   const [syncing, setSyncing]   = useState(false);
   const [syncMsg, setSyncMsg]   = useState("");
   const [lastSync, setLastSync] = useState<string | null>(null);
@@ -52,12 +53,13 @@ export default function AvisosClient({ equipment, canEdit, canSync }: {
     const params = new URLSearchParams();
     if (urgFilter) params.set("urgencia", urgFilter);
     if (search)    params.set("q", search);
+    params.set("page", String(page));
     const res = await fetch(`/api/avisos?${params}`);
     const json = await res.json();
     setAvisos(json.data ?? []);
     setCount(json.count ?? 0);
     setLoading(false);
-  }, [urgFilter, search]);
+  }, [urgFilter, search, page]);
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { fetch("/api/avisos/sync").then(r => r.json()).then(d => setLastSync(d.last_sync)); }, []);
@@ -226,7 +228,7 @@ export default function AvisosClient({ equipment, canEdit, canSync }: {
       {/* Filtros */}
       <div className="flex gap-2 flex-wrap">
         {URGENCIAS.map((u) => (
-          <button key={u.key} onClick={() => setUrgFilter(u.key)}
+          <button key={u.key} onClick={() => { setUrgFilter(u.key); setPage(1); }}
             className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold border transition-all"
             style={{
               color:       urgFilter === u.key ? u.color : "#64748B",
@@ -236,7 +238,7 @@ export default function AvisosClient({ equipment, canEdit, canSync }: {
             {u.label}
           </button>
         ))}
-        <input value={search} onChange={(e) => setSearch(e.target.value)}
+        <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }}
           placeholder="Buscar N° OA, equipo, sector, descripción..."
           className="w-full sm:w-64 sm:ml-auto rounded-lg border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-100" />
       </div>
@@ -250,7 +252,10 @@ export default function AvisosClient({ equipment, canEdit, canSync }: {
         </div>
       ) : (
         <>
-          <p className="text-xs text-gray-400">{count} avisos</p>
+          <p className="text-xs text-gray-400">
+            {count} avisos
+            {count > 50 && <> · mostrando {(page - 1) * 50 + 1}–{Math.min(page * 50, count)}</>}
+          </p>
           <div className="space-y-2">
             {avisos.map((a) => {
               const m = urgenciaMeta(a.urgencia);
@@ -307,6 +312,15 @@ export default function AvisosClient({ equipment, canEdit, canSync }: {
               );
             })}
           </div>
+          {count > 50 && (
+            <div className="flex items-center justify-center gap-2 pt-1">
+              <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}
+                className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-40">← Anterior</button>
+              <span className="text-sm text-gray-500">{page} / {Math.ceil(count / 50)}</span>
+              <button onClick={() => setPage((p) => Math.min(Math.ceil(count / 50), p + 1))} disabled={page >= Math.ceil(count / 50)}
+                className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-40">Siguiente →</button>
+            </div>
+          )}
         </>
       )}
 
