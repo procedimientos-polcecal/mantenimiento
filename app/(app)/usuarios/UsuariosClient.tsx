@@ -7,10 +7,11 @@ import { useConfirm } from "@/app/components/ConfirmProvider";
 import InfoTip from "@/app/components/InfoTip";
 
 const ROLES = [
-  { value: "admin_sistema",  label: "Admin sistema" },
-  { value: "administrador",  label: "Administrador" },
-  { value: "gerente",        label: "Gerente" },
-  { value: "operario",       label: "Operario" },
+  { value: "admin_sistema",   label: "Admin sistema" },
+  { value: "administrador",   label: "Administrador" },
+  { value: "jefe_produccion", label: "Jefe de Producción" },
+  { value: "gerente",         label: "Gerente" },
+  { value: "operario",        label: "Operario" },
 ];
 
 const EMPTY_FORM = { full_name: "", email: "", role: "operario", password: "" };

@@ -9,8 +9,8 @@ export default async function ProduccionPage() {
 
   const { data: appUser } = await supabase
     .from("app_users").select("role").eq("id", user.id).single();
-  // Por ahora, solo administrador de sistema puede editar la producción
-  const canEdit = appUser?.role === "admin_sistema";
+  // Editan: administrador de sistema y jefe de producción
+  const canEdit = ["admin_sistema", "jefe_produccion"].includes(appUser?.role ?? "");
 
   const { data: sectors } = await supabase
     .from("sectors")

@@ -34,7 +34,7 @@ const PLANT_STATUS_OPTIONS = [
 
 const ROLE_LABEL: Record<string, string> = {
   admin_sistema: "Admin sistema", administrador: "Administrador",
-  gerente: "Gerente", operario: "Operario",
+  jefe_produccion: "Jefe de Producción", gerente: "Gerente", operario: "Operario",
 };
 
 const PLANT_COLORS: Record<string, string> = {
