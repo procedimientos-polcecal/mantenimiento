@@ -30,15 +30,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
   }
 
-  const { week_start, sector_id, days, note } = await request.json();
+  const { week_start, sector_id, days, note, motivos, turnos, responsable } = await request.json();
   if (!week_start || !sector_id || !Array.isArray(days) || days.length !== 7) {
     return NextResponse.json({ error: "Datos inválidos" }, { status: 400 });
   }
   const clean = days.map((d: string) => (VALID.includes(d) ? d : "LIBRE"));
+  // Arrays de 7 strings (se normaliza el largo por las dudas).
+  const to7 = (arr: any) => Array.from({ length: 7 }, (_, i) => (Array.isArray(arr) ? (arr[i] ?? "") : "").toString());
 
   const admin = createAdminClient();
   const { error } = await admin.from("production_plan").upsert(
-    { week_start, sector_id, days: clean, note: note?.trim() || null, updated_by: user.id, updated_at: new Date().toISOString() },
+    {
+      week_start, sector_id, days: clean,
+      motivos: to7(motivos), turnos: to7(turnos),
+      responsable: responsable?.toString().trim() || null,
+      note: note?.trim() || null, updated_by: user.id, updated_at: new Date().toISOString(),
+    },
     { onConflict: "week_start,sector_id" }
   );
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

@@ -4,14 +4,17 @@ import { useEffect, useMemo, useState, useCallback } from "react";
 import InfoTip from "@/app/components/InfoTip";
 
 const DIAS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
+const TURNOS = ["M", "T", "N"]; // Mañana / Tarde / Noche
 
-const ESTADO: Record<string, { label: string; color: string; bg: string }> = {
-  EN_PRODUCCION: { label: "En producción", color: "#16A34A", bg: "#DCFCE7" },
-  PARCIAL:       { label: "Parcial",       color: "#B45309", bg: "#FEF3C7" },
-  LIBRE:         { label: "Libre",         color: "#64748B", bg: "#F1F5F9" },
+const ESTADO: Record<string, { label: string; short: string; color: string; bg: string }> = {
+  EN_PRODUCCION: { label: "En producción", short: "Prod", color: "#16A34A", bg: "#DCFCE7" },
+  PARCIAL:       { label: "Parcial",       short: "Parc", color: "#B45309", bg: "#FEF3C7" },
+  LIBRE:         { label: "Libre",         short: "—",    color: "#64748B", bg: "#F1F5F9" },
 };
-// Al tocar una celda, cicla entre estos
-const CYCLE = ["LIBRE", "EN_PRODUCCION", "PARCIAL"];
+const ESTADO_OPTS = ["LIBRE", "EN_PRODUCCION", "PARCIAL"];
+
+type Rec = { days: string[]; note: string; motivos: string[]; turnos: string[]; responsable: string };
+const emptyRec = (): Rec => ({ days: Array(7).fill("LIBRE"), note: "", motivos: Array(7).fill(""), turnos: Array(7).fill(""), responsable: "" });
 
 // Lunes de la semana que contiene a `d`
 function mondayOf(d: Date): Date {
@@ -31,10 +34,10 @@ export default function ProduccionClient({ sectors, canEdit }: { sectors: any[];
     m.setDate(m.getDate() + 7);
     return m;
   });
-  // { sectorId: { days: string[7], note } }
-  const [data, setData] = useState<Record<string, { days: string[]; note: string }>>({});
+  const [data, setData] = useState<Record<string, Rec>>({});
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [editCell, setEditCell] = useState<{ sectorId: string; dayIdx: number } | null>(null);
 
   const weekIso = iso(weekStart);
   const dayDates = useMemo(
@@ -46,9 +49,15 @@ export default function ProduccionClient({ sectors, canEdit }: { sectors: any[];
     setLoading(true);
     const res = await fetch(`/api/produccion?week=${weekIso}`);
     const json = await res.json();
-    const map: Record<string, { days: string[]; note: string }> = {};
+    const map: Record<string, Rec> = {};
     for (const row of json.data ?? []) {
-      map[row.sector_id] = { days: row.days ?? Array(7).fill("LIBRE"), note: row.note ?? "" };
+      map[row.sector_id] = {
+        days: row.days ?? Array(7).fill("LIBRE"),
+        note: row.note ?? "",
+        motivos: row.motivos ?? Array(7).fill(""),
+        turnos: row.turnos ?? Array(7).fill(""),
+        responsable: row.responsable ?? "",
+      };
     }
     setData(map);
     setLoading(false);
@@ -56,34 +65,36 @@ export default function ProduccionClient({ sectors, canEdit }: { sectors: any[];
 
   useEffect(() => { load(); }, [load]);
 
-  function getDays(sectorId: string): string[] {
-    return data[sectorId]?.days ?? Array(7).fill("LIBRE");
-  }
+  const getRec = useCallback((sectorId: string): Rec => data[sectorId] ?? emptyRec(), [data]);
 
-  async function persist(sectorId: string, days: string[], note: string) {
+  const persistSector = useCallback(async (sectorId: string, rec: Rec) => {
     if (!canEdit) return;
     setSavingId(sectorId);
     await fetch("/api/produccion", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ week_start: weekIso, sector_id: sectorId, days, note }),
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        week_start: weekIso, sector_id: sectorId,
+        days: rec.days, note: rec.note, motivos: rec.motivos, turnos: rec.turnos, responsable: rec.responsable,
+      }),
     });
     setSavingId(null);
+  }, [canEdit, weekIso]);
+
+  function updateSector(sectorId: string, patch: Partial<Rec>, persist = true) {
+    const rec = { ...getRec(sectorId), ...patch };
+    setData((d) => ({ ...d, [sectorId]: rec }));
+    if (persist) persistSector(sectorId, rec);
   }
 
-  function cycleCell(sectorId: string, dayIdx: number) {
-    if (!canEdit) return;
-    const days = [...getDays(sectorId)];
-    const cur = CYCLE.indexOf(days[dayIdx]);
-    days[dayIdx] = CYCLE[(cur + 1) % CYCLE.length] ?? "LIBRE";
-    const note = data[sectorId]?.note ?? "";
-    setData((d) => ({ ...d, [sectorId]: { days, note } }));
-    persist(sectorId, days, note);
-  }
-
-  function setNote(sectorId: string, note: string) {
-    const days = getDays(sectorId);
-    setData((d) => ({ ...d, [sectorId]: { days, note } }));
+  function saveCell(estado: string, turnos: string, motivo: string) {
+    if (!editCell) return;
+    const { sectorId, dayIdx } = editCell;
+    const rec = getRec(sectorId);
+    const days = [...rec.days];       days[dayIdx] = estado;
+    const turnosArr = [...rec.turnos]; turnosArr[dayIdx] = turnos;
+    const motivos = [...rec.motivos]; motivos[dayIdx] = motivo;
+    updateSector(sectorId, { days, turnos: turnosArr, motivos });
+    setEditCell(null);
   }
 
   // Agrupar sectores por planta
@@ -99,7 +110,7 @@ export default function ProduccionClient({ sectors, canEdit }: { sectors: any[];
   // Días en que TODOS los sectores de una planta están libres → se puede reparar
   function plantFreeDays(plantSectors: any[]): boolean[] {
     return Array.from({ length: 7 }, (_, i) =>
-      plantSectors.every((s) => getDays(s.id)[i] === "LIBRE")
+      plantSectors.every((s) => getRec(s.id).days[i] === "LIBRE")
     );
   }
 
@@ -110,16 +121,14 @@ export default function ProduccionClient({ sectors, canEdit }: { sectors: any[];
         <div>
           <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
             Planificación de producción
-            <InfoTip text="Cargá qué sectores estarán en producción cada día de la semana. Los que queden 'Libres' son candidatos para reparación. Si una planta tiene todos sus sectores libres un día, se resalta: podés pararla sin frenar el despacho." />
+            <InfoTip text="Cargá qué sectores estarán en producción cada día. Tocá una celda para elegir estado, turnos y (si hay parada) el motivo. Los días 'Libres' son candidatos para reparación; si toda una planta queda libre un día, se resalta." />
           </h1>
-          <p className="text-sm text-gray-400 mt-0.5">Tocá cada celda para cambiar el estado del día.</p>
+          <p className="text-sm text-gray-400 mt-0.5">{canEdit ? "Tocá cada celda para editar el día." : "Vista de solo lectura."}</p>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={() => { const d = new Date(weekStart); d.setDate(d.getDate() - 7); setWeekStart(d); }}
             className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50">‹</button>
-          <span className="text-sm font-semibold text-gray-700 whitespace-nowrap">
-            Semana del {fmt(weekStart)}
-          </span>
+          <span className="text-sm font-semibold text-gray-700 whitespace-nowrap">Semana del {fmt(weekStart)}</span>
           <button onClick={() => { const d = new Date(weekStart); d.setDate(d.getDate() + 7); setWeekStart(d); }}
             className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50">›</button>
         </div>
@@ -133,6 +142,7 @@ export default function ProduccionClient({ sectors, canEdit }: { sectors: any[];
             <span className="text-gray-600">{m.label}</span>
           </span>
         ))}
+        <span className="text-gray-400">· Turnos: M (mañana) / T (tarde) / N (noche)</span>
       </div>
 
       {loading ? (
@@ -157,36 +167,46 @@ export default function ProduccionClient({ sectors, canEdit }: { sectors: any[];
                             <div className="text-[10px] text-gray-300">{fmt(dayDates[i])}</div>
                           </th>
                         ))}
+                        <th className="text-left font-medium px-3 py-2 min-w-[120px]">Responsable</th>
                         <th className="text-left font-medium px-3 py-2 min-w-[140px]">Nota</th>
                       </tr>
                     </thead>
                     <tbody>
                       {plantSectors.map((s) => {
-                        const days = getDays(s.id);
+                        const rec = getRec(s.id);
                         return (
                           <tr key={s.id} className="border-t border-gray-100">
                             <td className="px-3 py-2 font-medium text-gray-800">{s.name}</td>
-                            {days.map((st, i) => {
+                            {rec.days.map((st, i) => {
                               const m = ESTADO[st] ?? ESTADO.LIBRE;
+                              const turno = rec.turnos[i] ?? "";
+                              const motivo = rec.motivos[i] ?? "";
                               return (
-                                <td key={i} className="px-1 py-1.5 text-center">
-                                  <button onClick={() => cycleCell(s.id, i)} disabled={!canEdit}
-                                    className="w-full min-w-[36px] h-8 rounded-md text-[10px] font-semibold transition-colors disabled:cursor-default"
+                                <td key={i} className="px-1 py-1.5 text-center align-top">
+                                  <button onClick={() => canEdit && setEditCell({ sectorId: s.id, dayIdx: i })} disabled={!canEdit}
+                                    className="w-full min-w-[44px] rounded-md py-1 transition-colors disabled:cursor-default"
                                     style={{ background: m.bg, color: m.color, border: `1px solid ${m.color}33` }}
-                                    title={m.label}>
-                                    {st === "EN_PRODUCCION" ? "Prod" : st === "PARCIAL" ? "Parc" : "—"}
+                                    title={[m.label, turno && `Turnos: ${turno}`, motivo && `Motivo: ${motivo}`].filter(Boolean).join(" · ")}>
+                                    <div className="text-[10px] font-semibold leading-tight">{m.short}</div>
+                                    {turno && <div className="text-[9px] leading-tight opacity-80">{turno.split("").join("·")}</div>}
+                                    {motivo && <div className="text-[9px] leading-none">•</div>}
                                   </button>
                                 </td>
                               );
                             })}
                             <td className="px-2 py-1.5">
-                              <input
-                                value={data[s.id]?.note ?? ""}
-                                onChange={(e) => setNote(s.id, e.target.value)}
-                                onBlur={(e) => canEdit && persist(s.id, getDays(s.id), e.target.value)}
-                                disabled={!canEdit}
-                                placeholder="—"
-                                className="w-full rounded-md border border-gray-200 px-2 py-1 text-xs outline-none focus:border-amber-400" />
+                              <input value={rec.responsable}
+                                onChange={(e) => updateSector(s.id, { responsable: e.target.value }, false)}
+                                onBlur={(e) => canEdit && persistSector(s.id, { ...getRec(s.id), responsable: e.target.value })}
+                                disabled={!canEdit} placeholder="—"
+                                className="w-full rounded-md border border-gray-200 px-2 py-1 text-xs outline-none focus:border-amber-400 disabled:bg-transparent disabled:border-transparent" />
+                            </td>
+                            <td className="px-2 py-1.5">
+                              <input value={rec.note}
+                                onChange={(e) => updateSector(s.id, { note: e.target.value }, false)}
+                                onBlur={(e) => canEdit && persistSector(s.id, { ...getRec(s.id), note: e.target.value })}
+                                disabled={!canEdit} placeholder="—"
+                                className="w-full rounded-md border border-gray-200 px-2 py-1 text-xs outline-none focus:border-amber-400 disabled:bg-transparent disabled:border-transparent" />
                             </td>
                           </tr>
                         );
@@ -208,6 +228,91 @@ export default function ProduccionClient({ sectors, canEdit }: { sectors: any[];
       )}
 
       {savingId && <p className="text-xs text-gray-400 text-right">Guardando...</p>}
+
+      {/* Editor de día */}
+      {editCell && (() => {
+        const rec = getRec(editCell.sectorId);
+        const sector = sectors.find((s) => s.id === editCell.sectorId);
+        return (
+          <DiaEditor
+            sectorName={sector?.name ?? ""}
+            dayLabel={`${DIAS[editCell.dayIdx]} ${fmt(dayDates[editCell.dayIdx])}`}
+            estado={rec.days[editCell.dayIdx]}
+            turnos={rec.turnos[editCell.dayIdx] ?? ""}
+            motivo={rec.motivos[editCell.dayIdx] ?? ""}
+            onSave={saveCell}
+            onClose={() => setEditCell(null)}
+          />
+        );
+      })()}
+    </div>
+  );
+}
+
+function DiaEditor({ sectorName, dayLabel, estado, turnos, motivo, onSave, onClose }: {
+  sectorName: string; dayLabel: string; estado: string; turnos: string; motivo: string;
+  onSave: (estado: string, turnos: string, motivo: string) => void; onClose: () => void;
+}) {
+  const [est, setEst] = useState(estado);
+  const [tur, setTur] = useState(turnos);
+  const [mot, setMot] = useState(motivo);
+  const toggleTurno = (t: string) => setTur((prev) => prev.includes(t) ? prev.replace(t, "") : TURNOS.filter((x) => (prev + t).includes(x)).join(""));
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-end md:items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="w-full max-w-sm rounded-2xl bg-white p-6 space-y-4 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div>
+          <h2 className="text-base font-bold text-gray-900" style={{ fontFamily: "'Syne', sans-serif" }}>{sectorName}</h2>
+          <p className="text-xs text-gray-400 mt-0.5">{dayLabel}</p>
+        </div>
+
+        <div className="space-y-1">
+          <label className="block text-xs font-medium text-gray-600">Estado</label>
+          <div className="grid grid-cols-3 gap-2">
+            {ESTADO_OPTS.map((k) => {
+              const m = ESTADO[k];
+              const sel = est === k;
+              return (
+                <button key={k} onClick={() => setEst(k)}
+                  className="rounded-xl border-2 px-2 py-2 text-xs font-semibold transition-all"
+                  style={{ borderColor: sel ? m.color : "#E2E8F0", background: sel ? m.bg : "#fff", color: sel ? m.color : "#64748B" }}>
+                  {m.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="space-y-1">
+          <label className="block text-xs font-medium text-gray-600">Turnos</label>
+          <div className="flex gap-2">
+            {TURNOS.map((t) => {
+              const sel = tur.includes(t);
+              const nombre = t === "M" ? "Mañana" : t === "T" ? "Tarde" : "Noche";
+              return (
+                <button key={t} onClick={() => toggleTurno(t)}
+                  className={`flex-1 rounded-xl border-2 px-2 py-2 text-xs font-semibold transition-all ${sel ? "border-amber-400 bg-amber-50 text-amber-700" : "border-gray-200 bg-white text-gray-500"}`}>
+                  {nombre}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="space-y-1">
+          <label className="block text-xs font-medium text-gray-600">
+            Motivo de parada {est !== "EN_PRODUCCION" ? "" : <span className="text-gray-400">(opcional)</span>}
+          </label>
+          <input value={mot} onChange={(e) => setMot(e.target.value)}
+            placeholder={est === "EN_PRODUCCION" ? "Sin parada" : "Mantenimiento, falta de insumo, feriado..."}
+            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-amber-400" />
+        </div>
+
+        <div className="flex gap-2 pt-1">
+          <button onClick={() => onSave(est, tur, mot)} className="btn-primary">Guardar</button>
+          <button onClick={onClose} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Cancelar</button>
+        </div>
+      </div>
     </div>
   );
 }
