@@ -61,6 +61,7 @@ const QUIEN_COLORS: Record<string, string> = {
 export default function DashboardClient({
   appUser, equipment,
   plants, sectors, sectorStatusLog, recentExecutions, otStats, tipoTally, quienTally, canEdit,
+  repairWindows = [], repairWeekLabel = "",
 }: {
   appUser: any;
   equipment: any[];
@@ -73,6 +74,8 @@ export default function DashboardClient({
   tipoTally: Record<string, number>;
   quienTally: Record<string, number>;
   canEdit: boolean;
+  repairWindows?: { plant: string; freeDayLabels: string[]; pendingOT: number }[];
+  repairWeekLabel?: string;
 }) {
   const router = useRouter();
   const [plantFilter, setPlantFilter] = useState("TODAS");
@@ -438,6 +441,37 @@ export default function DashboardClient({
         <IndicatorGroup title="Ejecución del trabajo" tally={quienTally} colors={QUIEN_COLORS}
           hrefFor={(l) => ["Propio", "Contratado", "Mixto"].includes(l) ? `/ordenes?quien=${l.toLowerCase()}` : null} />
       </div>
+
+      {/* Ventanas de reparación (próxima semana) */}
+      {repairWindows.length > 0 && (
+        <div className="bg-white rounded-2xl border border-gray-200 p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <h2 className="text-sm font-semibold text-gray-700" style={{ fontFamily: "'Syne', sans-serif" }}>
+              Ventanas de reparación
+            </h2>
+            <span className="text-xs text-gray-400">semana del {repairWeekLabel}</span>
+            <InfoTip text="Plantas cuya producción planificada deja días con todos los sectores libres la próxima semana. Si además hay OT pendientes en esos sectores, conviene aprovechar la ventana." />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {repairWindows.map((w) => (
+              <Link key={w.plant} href="/produccion"
+                className="rounded-xl border border-gray-200 p-3 block hover:border-green-300 hover:shadow-sm transition-all"
+                style={{ background: "#F0FDF4" }}>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-semibold text-gray-800">{w.plant}</span>
+                  {w.pendingOT > 0 && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
+                      🔧 {w.pendingOT} OT
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-green-700 mt-1">Libre: {w.freeDayLabels.join(", ")}</p>
+                {w.pendingOT > 0 && <p className="text-[11px] text-amber-700 mt-0.5">Aprovechá la ventana para reparar.</p>}
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Execution trend */}
       <ExecutionTrendCard recentExecutions={recentExecutions} />

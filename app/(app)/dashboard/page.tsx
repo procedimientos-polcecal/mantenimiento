@@ -82,8 +82,32 @@ export default async function DashboardPage() {
 
   const canEdit = ["admin_sistema", "administrador"].includes(appUser?.role ?? "");
 
+  // ── Ventanas de reparación (próxima semana) ──────────────────────────────────
+  const nm = new Date(); nm.setHours(12, 0, 0, 0);
+  nm.setDate(nm.getDate() - ((nm.getDay() + 6) % 7) + 7); // lunes de la próxima semana
+  const nmIso = nm.toISOString().slice(0, 10);
+  const [{ data: prodPlans }, { data: otSectors }] = await Promise.all([
+    supabase.from("production_plan").select("sector_id, days").eq("week_start", nmIso),
+    supabase.from("work_orders").select("sector_id").in("estado", ["POR_HACER", "EN_PROCESO", "ATRASADO"]).not("sector_id", "is", null),
+  ]);
+  const DIAS_D = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
+  const planMap = new Map((prodPlans ?? []).map((p: any) => [p.sector_id, p.days]));
+  const otCountBySector: Record<string, number> = {};
+  for (const o of (otSectors ?? [])) otCountBySector[o.sector_id] = (otCountBySector[o.sector_id] ?? 0) + 1;
+  const plantsMap: Record<string, any[]> = {};
+  for (const s of (sectors ?? [])) { const pl = (s as any).plants?.name ?? "—"; (plantsMap[pl] ??= []).push(s); }
+  const repairWindows = Object.entries(plantsMap).map(([plant, secs]) => {
+    const hasPlan = secs.some((s) => planMap.has(s.id));
+    const freeDays = Array.from({ length: 7 }, (_, i) => secs.every((s) => ((planMap.get(s.id) ?? Array(7).fill("LIBRE"))[i]) === "LIBRE"));
+    const pendingOT = secs.reduce((a, s) => a + (otCountBySector[s.id] ?? 0), 0);
+    return { plant, hasPlan, freeDayLabels: DIAS_D.filter((_, i) => freeDays[i]), pendingOT };
+  }).filter((w) => w.hasPlan && w.freeDayLabels.length > 0);
+  const repairWeekLabel = nm.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" });
+
   return (
     <DashboardClient
+      repairWindows={repairWindows}
+      repairWeekLabel={repairWeekLabel}
       appUser={appUser}
       equipment={equipment ?? []}
       plants={plants ?? []}

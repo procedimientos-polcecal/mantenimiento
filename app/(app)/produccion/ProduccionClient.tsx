@@ -27,7 +27,9 @@ function mondayOf(d: Date): Date {
 function iso(d: Date) { return d.toISOString().slice(0, 10); }
 function fmt(d: Date) { return d.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" }); }
 
-export default function ProduccionClient({ sectors, canEdit }: { sectors: any[]; canEdit: boolean }) {
+export default function ProduccionClient({ sectors, canEdit, pendOT = [], pendOS = [] }: {
+  sectors: any[]; canEdit: boolean; pendOT?: any[]; pendOS?: any[];
+}) {
   // Por defecto, la semana que viene
   const [weekStart, setWeekStart] = useState<Date>(() => {
     const m = mondayOf(new Date());
@@ -38,6 +40,20 @@ export default function ProduccionClient({ sectors, canEdit }: { sectors: any[];
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [editCell, setEditCell] = useState<{ sectorId: string; dayIdx: number } | null>(null);
+  const [pendSector, setPendSector] = useState<any | null>(null);
+
+  // Mantenimiento pendiente por sector (para cruzar con las ventanas libres)
+  const otBySector = useMemo(() => {
+    const m: Record<string, any[]> = {};
+    for (const o of pendOT) (m[o.sector_id] ??= []).push(o);
+    return m;
+  }, [pendOT]);
+  const osBySector = useMemo(() => {
+    const m: Record<string, any[]> = {};
+    for (const o of pendOS) (m[o.sector_id] ??= []).push(o);
+    return m;
+  }, [pendOS]);
+  const pendCount = (sectorId: string) => (otBySector[sectorId]?.length ?? 0) + (osBySector[sectorId]?.length ?? 0);
 
   const weekIso = iso(weekStart);
   const dayDates = useMemo(
@@ -176,7 +192,18 @@ export default function ProduccionClient({ sectors, canEdit }: { sectors: any[];
                         const rec = getRec(s.id);
                         return (
                           <tr key={s.id} className="border-t border-gray-100">
-                            <td className="px-3 py-2 font-medium text-gray-800">{s.name}</td>
+                            <td className="px-3 py-2 font-medium text-gray-800">
+                              <div className="flex items-center gap-2">
+                                <span>{s.name}</span>
+                                {pendCount(s.id) > 0 && (
+                                  <button onClick={() => setPendSector(s)}
+                                    className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 hover:bg-amber-100"
+                                    title="Mantenimiento pendiente en este sector">
+                                    🔧 {pendCount(s.id)}
+                                  </button>
+                                )}
+                              </div>
+                            </td>
                             {rec.days.map((st, i) => {
                               const m = ESTADO[st] ?? ESTADO.LIBRE;
                               const turno = rec.turnos[i] ?? "";
@@ -215,12 +242,22 @@ export default function ProduccionClient({ sectors, canEdit }: { sectors: any[];
                   </table>
                 </div>
                 {/* Resumen de reparación */}
-                {freeDays.some(Boolean) && (
-                  <div className="px-4 py-2.5 border-t border-gray-100 bg-green-50/50 text-xs text-green-700">
-                    <span className="font-semibold">Planta libre (todos los sectores) — se puede reparar: </span>
-                    {DIAS.filter((_, i) => freeDays[i]).join(", ")}
-                  </div>
-                )}
+                {freeDays.some(Boolean) && (() => {
+                  const plantPend = plantSectors.reduce((a, s) => a + pendCount(s.id), 0);
+                  return (
+                    <div className="px-4 py-2.5 border-t border-gray-100 bg-green-50/50 text-xs text-green-700 space-y-0.5">
+                      <div>
+                        <span className="font-semibold">Planta libre (todos los sectores) — se puede reparar: </span>
+                        {DIAS.filter((_, i) => freeDays[i]).join(", ")}
+                      </div>
+                      {plantPend > 0 && (
+                        <div className="text-amber-700">
+                          🔧 <span className="font-semibold">Aprovechá la ventana:</span> hay {plantPend} pendiente{plantPend === 1 ? "" : "s"} de mantenimiento en esta planta.
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             );
           })}
@@ -228,6 +265,16 @@ export default function ProduccionClient({ sectors, canEdit }: { sectors: any[];
       )}
 
       {savingId && <p className="text-xs text-gray-400 text-right">Guardando...</p>}
+
+      {/* Pendientes de mantenimiento del sector */}
+      {pendSector && (
+        <PendientesSector
+          sectorName={pendSector.name}
+          ot={otBySector[pendSector.id] ?? []}
+          os={osBySector[pendSector.id] ?? []}
+          onClose={() => setPendSector(null)}
+        />
+      )}
 
       {/* Editor de día */}
       {editCell && (() => {
@@ -245,6 +292,54 @@ export default function ProduccionClient({ sectors, canEdit }: { sectors: any[];
           />
         );
       })()}
+    </div>
+  );
+}
+
+function PendientesSector({ sectorName, ot, os, onClose }: {
+  sectorName: string; ot: any[]; os: any[]; onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-[60] flex items-end md:items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="w-full max-w-md rounded-2xl bg-white p-6 space-y-4 shadow-xl max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between">
+          <div>
+            <h2 className="text-base font-bold text-gray-900" style={{ fontFamily: "'Syne', sans-serif" }}>Pendiente en {sectorName}</h2>
+            <p className="text-xs text-gray-400 mt-0.5">Para aprovechar la ventana de parada.</p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
+        </div>
+
+        <div>
+          <p className="text-xs font-semibold text-gray-500 mb-1">Órdenes de trabajo ({ot.length})</p>
+          {ot.length === 0 ? <p className="text-xs text-gray-400">Sin OT pendientes.</p> : (
+            <div className="space-y-1">
+              {ot.map((o, i) => (
+                <a key={i} href={`/ordenes?estado=${o.estado}`} className="block rounded-lg border border-gray-100 px-2.5 py-1.5 text-xs hover:bg-gray-50">
+                  <span className="font-mono text-gray-400">#{o.ot_number}</span>{" "}
+                  <span className="text-gray-800">{o.descripcion ?? o.equipo_raw ?? "—"}</span>
+                  {o.prioridad && <span className="ml-1 text-gray-400">· {o.prioridad}</span>}
+                </a>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div>
+          <p className="text-xs font-semibold text-gray-500 mb-1">Órdenes de servicio ({os.length})</p>
+          {os.length === 0 ? <p className="text-xs text-gray-400">Sin OS activas.</p> : (
+            <div className="space-y-1">
+              {os.map((o, i) => (
+                <div key={i} className="rounded-lg border border-gray-100 px-2.5 py-1.5 text-xs">
+                  <span className="font-mono text-gray-400">#{o.os_number}</span>{" "}
+                  <span className="text-gray-800">{o.descripcion ?? "—"}</span>
+                  {o.estado && <span className="ml-1 text-gray-400">· {o.estado}</span>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
