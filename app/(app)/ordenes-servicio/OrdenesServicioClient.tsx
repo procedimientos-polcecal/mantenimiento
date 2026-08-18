@@ -336,6 +336,16 @@ function daysBetween(a: string, b: string): number {
   return Math.round(ms / 86400000);
 }
 
+// Una OS ACEPTADA o DENEGADA se considera resuelta (cerrada), aunque no tenga
+// fecha de cierre: no vuelve a figurar como abierta/pendiente. (POR APROBAR y
+// EN PROCESO siguen abiertas.)
+function esResuelta(estado: string): boolean {
+  const e = (estado ?? "").toLowerCase();
+  if (e.includes("por aprob")) return false;
+  return e.includes("acept") || e.includes("deneg") || e.includes("rechaz") ||
+         e.includes("anul") || e.includes("realiz") || e.includes("aprob");
+}
+
 // Badge compacto para la fila de la lista.
 function seguimientoBadge(o: any): { label: string; c: string; b: string; title: string } | null {
   const pedido = o.fecha_pedido, cierre = o.fecha_realizacion;
@@ -343,6 +353,8 @@ function seguimientoBadge(o: any): { label: string; c: string; b: string; title:
     const d = pedido ? daysBetween(pedido, cierre) : null;
     return { label: d != null ? `✓ ${d} d` : "✓ cerrada", c: "#16A34A", b: "#F0FDF4", title: d != null ? `Cerrada en ${d} días` : "Cerrada" };
   }
+  // Resuelta (aceptada/denegada) sin fecha de cierre → cerrada, no abierta.
+  if (esResuelta(o.estado)) return null;
   if (pedido) {
     const d = daysBetween(pedido, todayISO());
     return { label: `⏳ ${d} d`, c: "#B45309", b: "#FFFBEB", title: `Pendiente · ${d} días desde el pedido` };
@@ -354,6 +366,7 @@ function seguimientoBadge(o: any): { label: string; c: string; b: string; title:
 function demoraInfo(o: any): { text: string; c: string } {
   const pedido = o.fecha_pedido, cierre = o.fecha_realizacion;
   if (pedido && cierre) return { text: `${daysBetween(pedido, cierre)} días`, c: "#16A34A" };
+  if (!cierre && esResuelta(o.estado)) return { text: "Cerrada (resuelta)", c: "#16A34A" };
   if (pedido && !cierre) return { text: `Pendiente · ${daysBetween(pedido, todayISO())} días desde el pedido`, c: "#B45309" };
   if (!pedido && cierre) return { text: "Cerrada (sin fecha de pedido)", c: "#64748B" };
   return { text: "Sin pedido registrado", c: "#94A3B8" };
