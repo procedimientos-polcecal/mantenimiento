@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useConfirm } from "@/app/components/ConfirmProvider";
 import InfoTip from "@/app/components/InfoTip";
+import ComparativaModal from "./ComparativaModal";
 
 const AREAS = ["Mantenimiento", "Taller Vial", "Producción", "Laboratorio", "Almacén", "Inversiones", "Despacho", "Cantera", "Otra"];
 const EMPRESAS = ["Polcecal", "Polysan", "Ambas"];
@@ -40,6 +41,8 @@ export default function OrdenesServicioClient({ equipment, canEdit, canSync }: {
   const [saving, setSaving]   = useState(false);
   const [error, setError]     = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [compOS, setCompOS] = useState<any | null>(null);
+  const [syncingComp, setSyncingComp] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -64,6 +67,17 @@ export default function OrdenesServicioClient({ equipment, canEdit, canSync }: {
     if (res.ok) { setSyncMsg(`✓ ${d.synced} OS sincronizadas`); setLastSync(new Date().toISOString()); load(); }
     else        { setSyncMsg(`Error: ${d.error}`); }
     setSyncing(false);
+  }
+
+  async function syncComparativas() {
+    const ok = await confirm({ title: "Sincronizar comparativas", message: "Se importarán/actualizarán las comparativas desde todas las pestañas (sectores) de la planilla de comparativas. ¿Sincronizar?", confirmText: "Sincronizar" });
+    if (!ok) return;
+    setSyncingComp(true); setSyncMsg("");
+    const res = await fetch("/api/comparativas/sync", { method: "POST" });
+    const d = await res.json();
+    if (res.ok) setSyncMsg(`✓ ${d.synced} cotizaciones sincronizadas`);
+    else        setSyncMsg(`Error: ${d.error}`);
+    setSyncingComp(false);
   }
 
   const [estadoBusy, setEstadoBusy] = useState<string | null>(null);
@@ -123,6 +137,15 @@ export default function OrdenesServicioClient({ equipment, canEdit, canSync }: {
               {syncing ? "Sincronizando..." : "Sync OS"}
             </button>
           )}
+          {canSync && (
+            <button onClick={syncComparativas} disabled={syncingComp}
+              className="flex items-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+              <svg className={`w-4 h-4 ${syncingComp ? "animate-spin" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              {syncingComp ? "Sincronizando..." : "Sync comparativas"}
+            </button>
+          )}
         </div>
       </div>
 
@@ -179,6 +202,13 @@ export default function OrdenesServicioClient({ equipment, canEdit, canSync }: {
                       {o.observaciones && <div className="col-span-2 md:col-span-3"><D label="Observaciones" v={o.observaciones} /></div>}
                       {o.imagen && <div className="col-span-2 md:col-span-3"><a href={o.imagen} target="_blank" rel="noreferrer" className="text-xs text-blue-600 underline">Ver imagen adjunta</a></div>}
                       {o.comparativa && o.comparativa !== "LINK" && <div className="col-span-2 md:col-span-3"><a href={o.comparativa} target="_blank" rel="noreferrer" className="text-xs text-blue-600 underline">Comparativa</a></div>}
+                      <div className="col-span-2 md:col-span-3 pt-1">
+                        <button onClick={() => setCompOS(o)}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" /></svg>
+                          Comparativa de proveedores
+                        </button>
+                      </div>
                       {canEdit && (
                         <div className="col-span-2 md:col-span-3 flex items-center gap-2 pt-1 flex-wrap">
                           <span className="text-xs text-gray-500 font-medium">Cambiar estado:</span>
@@ -205,6 +235,9 @@ export default function OrdenesServicioClient({ equipment, canEdit, canSync }: {
           </div>
         </>
       )}
+
+      {/* Comparativa de proveedores */}
+      {compOS && <ComparativaModal os={compOS} canEdit={canEdit} onClose={() => setCompOS(null)} />}
 
       {/* Nueva OS */}
       {showNew && (

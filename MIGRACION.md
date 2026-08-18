@@ -28,6 +28,7 @@ Variables). Varias hacen que ciertos endpoints **fallen cerrado** si faltan:
 | `RESEND_API_KEY`              | No se envían correos (se saltea silenciosamente)     |
 | `GOOGLE_SHEETS_ID`            | No hay lectura/escritura de Sheets                   |
 | `GOOGLE_SHEETS_TAB`           | Default "OT"                                          |
+| `GOOGLE_SHEETS_COMPARATIVAS_ID` | No sincroniza ni escribe las comparativas de proveedores |
 | `GOOGLE_SERVICE_ACCOUNT_JSON` | JWT de Google no se firma                            |
 | `EMAIL_FROM` / `EMAIL_ALERTS_TO` | Remitente/destinatarios de alertas                |
 | `NEXT_PUBLIC_APP_URL`         | Los links de los mails apuntan al dominio viejo      |
