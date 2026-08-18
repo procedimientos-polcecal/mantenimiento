@@ -2,6 +2,11 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import ProduccionClient from "./ProduccionClient";
 
+// El cruce con mantenimiento (OT/OS pendientes por sector) arranca desde esta
+// fecha: las OS históricas anteriores no tienen registro de cierre y ensuciaban
+// la lista mostrándose siempre como "sin cerrar". Las de hoy en adelante sí aparecen.
+const SEGUIMIENTO_DESDE = "2026-08-18";
+
 export default async function ProduccionPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -19,10 +24,11 @@ export default async function ProduccionPage() {
       .select("sector_id, ot_number, descripcion, equipo_raw, estado, prioridad")
       .in("estado", ["POR_HACER", "EN_PROCESO", "ATRASADO"])
       .not("sector_id", "is", null),
-    // OS con sector (se filtran las activas del lado del cliente)
+    // OS con sector, de la fecha de corte en adelante (las activas se filtran abajo)
     supabase.from("ordenes_servicio")
-      .select("sector_id, os_number, descripcion, estado")
-      .not("sector_id", "is", null),
+      .select("sector_id, os_number, descripcion, estado, fecha")
+      .not("sector_id", "is", null)
+      .gte("fecha", SEGUIMIENTO_DESDE),
   ]);
 
   // OS activas = no denegadas/anuladas
