@@ -8,13 +8,16 @@ import ComparativaModal from "./ComparativaModal";
 const AREAS = ["Mantenimiento", "Taller Vial", "Producción", "Laboratorio", "Almacén", "Inversiones", "Despacho", "Cantera", "Otra"];
 const EMPRESAS = ["Polcecal", "Polysan", "Ambas"];
 const PRIORIDADES = ["URGENTE", "1 SEMANA", "NORMAL", "LEVE"];
-const ESTADOS_OS = ["PENDIENTE", "APROBADO", "ACEPTADO", "EN CURSO", "RECHAZADO", "REALIZADO", "ANULADO"];
+const ESTADOS_OS = ["POR APROBAR", "EN PROCESO (COMPARATIVA)", "ACEPTADO", "DENEGADO"];
 
 function estadoColor(raw: string) {
   const v = (raw ?? "").toLowerCase();
+  // Rojo: denegado/rechazado/anulado
+  if (v.includes("deneg") || v.includes("rechaz") || v.includes("anul")) return { c: "#DC2626", b: "#FEF2F2" };
+  // Ámbar (en trámite): por aprobar / pendiente / en curso / en proceso
+  if (v.includes("por aprob") || v.includes("pend") || v.includes("curso") || v.includes("proces")) return { c: "#B45309", b: "#FFFBEB" };
+  // Verde: aceptado / aprobado / realizado
   if (v.includes("acept") || v.includes("aprob") || v.includes("realiz")) return { c: "#16A34A", b: "#F0FDF4" };
-  if (v.includes("pend") || v.includes("curso") || v.includes("proces"))  return { c: "#B45309", b: "#FFFBEB" };
-  if (v.includes("rechaz") || v.includes("anul"))                          return { c: "#DC2626", b: "#FEF2F2" };
   return { c: "#64748B", b: "#F1F5F9" };
 }
 
