@@ -46,17 +46,19 @@ export default function OrdenesServicioClient({ equipment, canEdit, canSync }: {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [compOS, setCompOS] = useState<any | null>(null);
   const [syncingComp, setSyncingComp] = useState(false);
+  const [page, setPage] = useState(1);
 
   const load = useCallback(async () => {
     setLoading(true);
     const params = new URLSearchParams();
     if (areaFilter) params.set("area", areaFilter);
     if (search)     params.set("q", search);
+    params.set("page", String(page));
     const res = await fetch(`/api/ordenes-servicio?${params}`);
     const json = await res.json();
     setRows(json.data ?? []); setCount(json.count ?? 0);
     setLoading(false);
-  }, [areaFilter, search]);
+  }, [areaFilter, search, page]);
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { fetch("/api/ordenes-servicio/sync").then(r => r.json()).then(d => setLastSync(d.last_sync)); }, []);
@@ -166,12 +168,12 @@ export default function OrdenesServicioClient({ equipment, canEdit, canSync }: {
       {/* Filtros por área */}
       <div className="flex gap-2 flex-wrap">
         {["", ...AREAS].map((a) => (
-          <button key={a || "todas"} onClick={() => setAreaFilter(a)}
+          <button key={a || "todas"} onClick={() => { setAreaFilter(a); setPage(1); }}
             className={`rounded-full px-3 py-1.5 text-xs font-semibold border transition-all ${areaFilter === a ? "bg-gray-900 text-white border-gray-900" : "bg-white text-gray-500 border-gray-200 hover:bg-gray-50"}`}>
             {a || "Todas"}
           </button>
         ))}
-        <input value={search} onChange={(e) => setSearch(e.target.value)}
+        <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }}
           placeholder="Buscar N° OS, equipo, proveedor, descripción..."
           className="w-full sm:w-64 sm:ml-auto rounded-lg border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-amber-400" />
       </div>
@@ -185,7 +187,10 @@ export default function OrdenesServicioClient({ equipment, canEdit, canSync }: {
         </div>
       ) : (
         <>
-          <p className="text-xs text-gray-400">{count} órdenes de servicio</p>
+          <p className="text-xs text-gray-400">
+            {count} órdenes de servicio
+            {count > 50 && <> · mostrando {(page - 1) * 50 + 1}–{Math.min(page * 50, count)}</>}
+          </p>
           <div className="rounded-xl border border-gray-200 bg-white divide-y divide-gray-100 overflow-hidden">
             {rows.map((o) => {
               const est = estadoColor(o.estado);
@@ -263,6 +268,15 @@ export default function OrdenesServicioClient({ equipment, canEdit, canSync }: {
               );
             })}
           </div>
+          {count > 50 && (
+            <div className="flex items-center justify-center gap-2 pt-1">
+              <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}
+                className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-40">← Anterior</button>
+              <span className="text-sm text-gray-500">{page} / {Math.ceil(count / 50)}</span>
+              <button onClick={() => setPage((p) => Math.min(Math.ceil(count / 50), p + 1))} disabled={page >= Math.ceil(count / 50)}
+                className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-40">Siguiente →</button>
+            </div>
+          )}
         </>
       )}
 
