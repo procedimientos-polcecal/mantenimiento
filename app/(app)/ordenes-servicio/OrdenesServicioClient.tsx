@@ -95,6 +95,17 @@ export default function OrdenesServicioClient({ equipment, canEdit, canSync }: {
     if (res.ok) { setRows((rs) => rs.map((r) => (r.id === o.id ? { ...r, estado } : r))); }
   }
 
+  const [busyFecha, setBusyFecha] = useState<string | null>(null);
+  async function updateFecha(o: any, field: "fecha_pedido" | "fecha_realizacion", value: string) {
+    setBusyFecha(o.id);
+    const res = await fetch("/api/ordenes-servicio", {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: o.id, [field]: value || null }),
+    });
+    setBusyFecha(null);
+    if (res.ok) setRows((rs) => rs.map((r) => (r.id === o.id ? { ...r, [field]: value || null } : r)));
+  }
+
   async function crear(e: React.FormEvent) {
     e.preventDefault();
     if (!form.descripcion.trim()) { setError("La descripción es obligatoria."); return; }
@@ -178,6 +189,7 @@ export default function OrdenesServicioClient({ equipment, canEdit, canSync }: {
           <div className="rounded-xl border border-gray-200 bg-white divide-y divide-gray-100 overflow-hidden">
             {rows.map((o) => {
               const est = estadoColor(o.estado);
+              const seg = seguimientoBadge(o);
               const isOpen = expanded === o.id;
               return (
                 <div key={o.id}>
@@ -188,6 +200,7 @@ export default function OrdenesServicioClient({ equipment, canEdit, canSync }: {
                       <p className="text-xs text-gray-400 truncate">{[o.area, o.equipo_raw, o.proveedor_elegido].filter(Boolean).join(" · ")}</p>
                     </div>
                     {o.costo != null && <span className="text-xs text-gray-500 shrink-0 hidden md:block">${Number(o.costo).toLocaleString("es-AR")}</span>}
+                    {seg && <span className="shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full hidden sm:inline" style={{ color: seg.c, background: seg.b }} title={seg.title}>{seg.label}</span>}
                     {o.estado && <span className="shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full" style={{ color: est.c, background: est.b }}>{o.estado}</span>}
                     <svg className={`w-4 h-4 text-gray-300 shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -200,11 +213,25 @@ export default function OrdenesServicioClient({ equipment, canEdit, canSync }: {
                       <D label="Costo" v={o.costo != null ? `$${Number(o.costo).toLocaleString("es-AR")}` : null} />
                       <D label="Orden de compra" v={o.tiene_orden_compra} /><D label="CUIT" v={o.cuit} />
                       <D label="Fecha req." v={o.fecha_requerimiento ? new Date(o.fecha_requerimiento).toLocaleDateString("es-AR") : null} />
-                      <D label="Fecha realización" v={o.fecha_realizacion ? new Date(o.fecha_realizacion).toLocaleDateString("es-AR") : null} />
                       {o.detalle_extra && <div className="col-span-2 md:col-span-3"><D label="Detalle" v={o.detalle_extra} /></div>}
                       {o.observaciones && <div className="col-span-2 md:col-span-3"><D label="Observaciones" v={o.observaciones} /></div>}
                       {o.imagen && <div className="col-span-2 md:col-span-3"><a href={o.imagen} target="_blank" rel="noreferrer" className="text-xs text-blue-600 underline">Ver imagen adjunta</a></div>}
                       {o.comparativa && o.comparativa !== "LINK" && <div className="col-span-2 md:col-span-3"><a href={o.comparativa} target="_blank" rel="noreferrer" className="text-xs text-blue-600 underline">Comparativa</a></div>}
+                      {/* Seguimiento: fecha de pedido y de cierre + demora */}
+                      <div className="col-span-2 md:col-span-3 rounded-lg border border-gray-200 bg-white p-3 mt-1">
+                        <p className="text-xs font-semibold text-gray-700 mb-2">Seguimiento</p>
+                        <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
+                          <FechaSeguimiento label="Fecha de pedido" value={o.fecha_pedido} canEdit={canEdit}
+                            busy={busyFecha === o.id} onSet={(v) => updateFecha(o, "fecha_pedido", v)} />
+                          <FechaSeguimiento label="Fecha de cierre / recepción" value={o.fecha_realizacion} canEdit={canEdit}
+                            busy={busyFecha === o.id} onSet={(v) => updateFecha(o, "fecha_realizacion", v)} />
+                          <div className="text-xs">
+                            <p className="text-gray-400 mb-0.5">Demora</p>
+                            <p className="font-semibold" style={{ color: demoraInfo(o).c }}>{demoraInfo(o).text}</p>
+                          </div>
+                        </div>
+                      </div>
+
                       <div className="col-span-2 md:col-span-3 pt-1">
                         <button onClick={() => setCompOS(o)}
                           className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors">
@@ -286,4 +313,59 @@ function D({ label, v }: { label: string; v?: string | null }) {
 }
 function Fld({ label, children }: { label: string; children: React.ReactNode }) {
   return <div className="space-y-1"><label className="block text-xs font-medium text-gray-600">{label}</label>{children}</div>;
+}
+
+// ── Seguimiento (pedido → cierre) ───────────────────────────────────────────────
+function todayISO(): string { return new Date().toISOString().slice(0, 10); }
+function daysBetween(a: string, b: string): number {
+  const ms = new Date(b.slice(0, 10)).getTime() - new Date(a.slice(0, 10)).getTime();
+  return Math.round(ms / 86400000);
+}
+
+// Badge compacto para la fila de la lista.
+function seguimientoBadge(o: any): { label: string; c: string; b: string; title: string } | null {
+  const pedido = o.fecha_pedido, cierre = o.fecha_realizacion;
+  if (cierre) {
+    const d = pedido ? daysBetween(pedido, cierre) : null;
+    return { label: d != null ? `✓ ${d} d` : "✓ cerrada", c: "#16A34A", b: "#F0FDF4", title: d != null ? `Cerrada en ${d} días` : "Cerrada" };
+  }
+  if (pedido) {
+    const d = daysBetween(pedido, todayISO());
+    return { label: `⏳ ${d} d`, c: "#B45309", b: "#FFFBEB", title: `Pendiente · ${d} días desde el pedido` };
+  }
+  return null;
+}
+
+// Texto de demora para el detalle.
+function demoraInfo(o: any): { text: string; c: string } {
+  const pedido = o.fecha_pedido, cierre = o.fecha_realizacion;
+  if (pedido && cierre) return { text: `${daysBetween(pedido, cierre)} días`, c: "#16A34A" };
+  if (pedido && !cierre) return { text: `Pendiente · ${daysBetween(pedido, todayISO())} días desde el pedido`, c: "#B45309" };
+  if (!pedido && cierre) return { text: "Cerrada (sin fecha de pedido)", c: "#64748B" };
+  return { text: "Sin pedido registrado", c: "#94A3B8" };
+}
+
+function FechaSeguimiento({ label, value, canEdit, busy, onSet }: {
+  label: string; value: string | null; canEdit: boolean; busy: boolean; onSet: (v: string) => void;
+}) {
+  const iso = value ? value.slice(0, 10) : "";
+  return (
+    <div className="text-xs">
+      <p className="text-gray-400 mb-0.5">{label}</p>
+      {canEdit ? (
+        <div className="flex items-center gap-1.5">
+          <input type="date" value={iso} disabled={busy} onChange={(e) => onSet(e.target.value)}
+            className="rounded-lg border border-gray-200 px-2 py-1 text-xs outline-none focus:border-amber-400 disabled:opacity-50" />
+          {!iso ? (
+            <button onClick={() => onSet(todayISO())} disabled={busy}
+              className="rounded-lg bg-gray-900 px-2 py-1 text-xs font-medium text-white hover:bg-gray-700 disabled:opacity-50">Sellar hoy</button>
+          ) : (
+            <button onClick={() => onSet("")} disabled={busy} className="text-gray-300 hover:text-red-600" title="Quitar fecha">×</button>
+          )}
+        </div>
+      ) : (
+        <p className="text-gray-700 font-medium">{iso ? new Date(iso).toLocaleDateString("es-AR") : "—"}</p>
+      )}
+    </div>
+  );
 }

@@ -224,6 +224,7 @@ export const OS_HEADER_ALIASES: Record<string, string[]> = {
   cuit:                ["CUIT"],
   tiene_orden_compra:  ["TIENE ORDEN DE COMPRA"],
   costo:               ["COSTO SIN IVA", "COSTO + IVA", "COSTO"],
+  fecha_pedido:        ["FECHA DE PEDIDO"],
   fecha_realizacion:   ["FECHA DE REALIZACION"],
   observaciones:       ["OBSERVACIONES EXTRA", "OBSERVACIONES"],
 };
@@ -293,6 +294,7 @@ export async function runOrdenesServicioSync(): Promise<number> {
         cuit:               (val(row, "cuit") ?? "").toString().trim() || null,
         tiene_orden_compra: (val(row, "tiene_orden_compra") ?? "").toString().trim() || null,
         costo:              costoRaw ? Number(costoRaw) || null : null,
+        fecha_pedido:       excelDateToISO(val(row, "fecha_pedido")),
         fecha_realizacion:  excelDateToISO(val(row, "fecha_realizacion")),
         observaciones:      val(row, "observaciones") ?? null,
         sheets_tab:         tab,

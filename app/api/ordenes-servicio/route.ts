@@ -69,7 +69,7 @@ function colLetter(i: number): string {
   return s;
 }
 
-// PATCH /api/ordenes-servicio — cambiar el estado de una OS
+// PATCH /api/ordenes-servicio — cambiar estado y/o fechas de seguimiento
 export async function PATCH(request: Request) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -79,16 +79,33 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
   }
 
-  const { id, estado } = await request.json();
-  if (!id || !estado?.trim()) return NextResponse.json({ error: "Datos inválidos" }, { status: 400 });
+  const body = await request.json();
+  if (!body.id) return NextResponse.json({ error: "ID requerido" }, { status: 400 });
+
+  // Whitelist de campos editables + su clave de columna en la planilla.
+  const update: any = { synced_at: new Date().toISOString() };
+  const sheetWrites: { key: string; value: string }[] = [];
+  if (body.estado !== undefined) {
+    const v = (body.estado ?? "").toString().trim() || null;
+    update.estado = v;
+    sheetWrites.push({ key: "estado", value: v ?? "" });
+  }
+  if (body.fecha_pedido !== undefined) {
+    update.fecha_pedido = body.fecha_pedido || null;
+    sheetWrites.push({ key: "fecha_pedido", value: isoToARDate(body.fecha_pedido) });
+  }
+  if (body.fecha_realizacion !== undefined) {
+    update.fecha_realizacion = body.fecha_realizacion || null;
+    sheetWrites.push({ key: "fecha_realizacion", value: isoToARDate(body.fecha_realizacion) });
+  }
+  if (Object.keys(update).length === 1) return NextResponse.json({ error: "Nada para actualizar" }, { status: 400 });
 
   const admin = createAdminClient();
   const { data: updated, error } = await admin
-    .from("ordenes_servicio").update({ estado: estado.trim(), synced_at: new Date().toISOString() })
-    .eq("id", id).select().single();
+    .from("ordenes_servicio").update(update).eq("id", body.id).select().single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Escribir el estado en la columna ESTADO de la pestaña (best-effort)
+  // Write-back a la planilla: cada campo a su columna (por encabezado), best-effort.
   let sheets_error: string | null = null;
   try {
     if (SHEET_ID && updated.sheets_tab && updated.sheets_row) {
@@ -96,17 +113,28 @@ export async function PATCH(request: Request) {
       const hr = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(updated.sheets_tab)}!1:1`,
         { headers: { Authorization: `Bearer ${token}` } });
       const header: string[] = ((await hr.json()).values?.[0] ?? []).map(osNorm);
-      const estadoCol = header.findIndex((h) => OS_HEADER_ALIASES.estado.some((a) => osNorm(a) === h));
-      if (estadoCol >= 0) {
-        const range = `${encodeURIComponent(updated.sheets_tab)}!${colLetter(estadoCol)}${updated.sheets_row}`;
-        const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${range}?valueInputOption=USER_ENTERED`,
-          { method: "PUT", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ values: [[estado.trim()]] }) });
+      const data: { range: string; values: string[][] }[] = [];
+      for (const w of sheetWrites) {
+        const col = header.findIndex((h) => (OS_HEADER_ALIASES[w.key] ?? []).some((a) => osNorm(a) === h));
+        if (col >= 0) {
+          data.push({ range: `${encodeURIComponent(updated.sheets_tab)}!${colLetter(col)}${updated.sheets_row}`, values: [[w.value]] });
+        }
+      }
+      if (data.length > 0) {
+        const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values:batchUpdate`,
+          { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ valueInputOption: "USER_ENTERED", data }) });
         if (!res.ok) sheets_error = `Sheets ${res.status}`;
       }
     }
   } catch (e: any) { sheets_error = e.message; }
 
   return NextResponse.json({ data: updated, sheets_error });
+}
+
+function isoToARDate(iso: string | null | undefined): string {
+  if (!iso) return "";
+  return new Date(iso.toString().slice(0, 10) + "T12:00:00").toLocaleDateString("es-AR");
 }
 
 // POST /api/ordenes-servicio — crear OS (y agregarla a la planilla)
