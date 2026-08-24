@@ -4,11 +4,12 @@ import { useEffect, useState, useCallback } from "react";
 import { useConfirm } from "@/app/components/ConfirmProvider";
 import InfoTip from "@/app/components/InfoTip";
 import ComparativaModal from "./ComparativaModal";
+import EnProcesoOSModal from "./EnProcesoOSModal";
 
 const AREAS = ["Mantenimiento", "Taller Vial", "Producción", "Laboratorio", "Almacén", "Inversiones", "Despacho", "Cantera", "Otra"];
 const EMPRESAS = ["Polcecal", "Polysan", "Ambas"];
 const PRIORIDADES = ["URGENTE", "1 SEMANA", "NORMAL", "LEVE"];
-const ESTADOS_OS = ["POR APROBAR", "EN PROCESO (COMPARATIVA)", "ACEPTADO", "DENEGADO"];
+const ESTADOS_OS = ["POR APROBAR", "EN PROCESO (COMPARATIVA)", "ACEPTADO", "EN PROCESO", "DENEGADO"];
 
 function estadoColor(raw: string) {
   const v = (raw ?? "").toLowerCase();
@@ -45,6 +46,7 @@ export default function OrdenesServicioClient({ equipment, canEdit, canSync }: {
   const [error, setError]     = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [compOS, setCompOS] = useState<any | null>(null);
+  const [enProcesoOS, setEnProcesoOS] = useState<any | null>(null);
   const [syncingComp, setSyncingComp] = useState(false);
   const [page, setPage] = useState(1);
 
@@ -251,7 +253,7 @@ export default function OrdenesServicioClient({ equipment, canEdit, canSync }: {
                             const m = estadoColor(s);
                             const active = (o.estado ?? "").toUpperCase() === s;
                             return (
-                              <button key={s} onClick={() => changeEstado(o, s)}
+                              <button key={s} onClick={() => s === "EN PROCESO" ? setEnProcesoOS(o) : changeEstado(o, s)}
                                 disabled={active || estadoBusy === o.id}
                                 className="text-xs font-semibold px-2.5 py-1 rounded-full border transition-all disabled:opacity-40"
                                 style={{ color: m.c, background: m.b, borderColor: m.c + "44" }}>
@@ -282,6 +284,18 @@ export default function OrdenesServicioClient({ equipment, canEdit, canSync }: {
 
       {/* Comparativa de proveedores */}
       {compOS && <ComparativaModal os={compOS} canEdit={canEdit} onClose={() => setCompOS(null)} />}
+
+      {/* Pasar a En proceso (elige proveedor de la comparativa) */}
+      {enProcesoOS && (
+        <EnProcesoOSModal
+          os={enProcesoOS}
+          onClose={() => setEnProcesoOS(null)}
+          onDone={(proveedor) => {
+            setRows((rs) => rs.map((r) => (r.id === enProcesoOS.id ? { ...r, estado: "EN PROCESO", proveedor_elegido: proveedor } : r)));
+            setEnProcesoOS(null);
+          }}
+        />
+      )}
 
       {/* Nueva OS */}
       {showNew && (

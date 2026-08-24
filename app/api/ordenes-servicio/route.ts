@@ -98,6 +98,11 @@ export async function PATCH(request: Request) {
     update.fecha_realizacion = body.fecha_realizacion || null;
     sheetWrites.push({ key: "fecha_realizacion", value: isoToARDate(body.fecha_realizacion) });
   }
+  if (body.proveedor_elegido !== undefined) {
+    const v = (body.proveedor_elegido ?? "").toString().trim() || null;
+    update.proveedor_elegido = v;
+    sheetWrites.push({ key: "proveedor_elegido", value: v ?? "" });
+  }
   if (Object.keys(update).length === 1) return NextResponse.json({ error: "Nada para actualizar" }, { status: 400 });
 
   const admin = createAdminClient();
