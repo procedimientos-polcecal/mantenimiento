@@ -34,7 +34,9 @@ async function getAccessToken(): Promise<string> {
 
 async function fetchSheet(sheetId: string, tab: string): Promise<string[][]> {
   const token = await getAccessToken();
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(tab)}`;
+  // UNFORMATTED_VALUE: las fechas vienen como serial numérico (no como texto
+  // formateado "1/12/2025"), que es lo que espera excelDateToISO.
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(tab)}?valueRenderOption=UNFORMATTED_VALUE`;
   const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
   if (!res.ok) throw new Error(`Sheets API ${res.status}: ${await res.text()}`);
   const json = await res.json();
@@ -42,11 +44,20 @@ async function fetchSheet(sheetId: string, tab: string): Promise<string[][]> {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-function excelDateToISO(val: string | number | undefined): string | null {
-  if (!val) return null;
+function excelDateToISO(val: string | number | undefined | null): string | null {
+  if (val === null || val === undefined || val === "") return null;
   const n = Number(val);
-  if (isNaN(n) || n < 1) return null;
-  return new Date((n - 25569) * 86400 * 1000).toISOString().slice(0, 10);
+  if (!isNaN(n) && n >= 1) {
+    // Serial de Excel/Sheets → ISO (se descarta la parte horaria)
+    return new Date(Math.floor(n) * 86400 * 1000 - 25569 * 86400 * 1000).toISOString().slice(0, 10);
+  }
+  // Respaldo: fecha en texto (formato es-AR d/m/aaaa, o ISO)
+  const s = val.toString().trim();
+  let m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (m) return `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
+  m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return s.slice(0, 10);
+  return null;
 }
 
 function extractCode(raw: string): string | null {
