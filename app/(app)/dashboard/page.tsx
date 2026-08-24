@@ -64,6 +64,22 @@ export default async function DashboardPage() {
   const otMes = otMesCount ?? 0;
   const mesLabel = MESES[mo];
 
+  // ── OTs por mes (últimos 12) ─────────────────────────────────────────────────
+  const MESES_CORTO = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+  const ventana = Array.from({ length: 12 }, (_, k) => {
+    const dt = new Date(y, mo - (11 - k), 1);
+    const yy = dt.getFullYear(), mm = dt.getMonth();
+    return {
+      label: MESES_CORTO[mm] + (mm === 0 ? ` '${String(yy).slice(2)}` : ""),
+      start: `${yy}-${pad(mm + 1)}-01`,
+      next: mm === 11 ? `${yy + 1}-01-01` : `${yy}-${pad(mm + 2)}-01`,
+    };
+  });
+  const porMesCounts = await Promise.all(
+    ventana.map((m) => supabase.from("work_orders").select("id", { count: "exact", head: true }).gte("fecha", m.start).lt("fecha", m.next))
+  );
+  const otPorMes = ventana.map((m, i) => ({ mes: m.label, cantidad: porMesCounts[i].count ?? 0 }));
+
   // ── Tipo de trabajo (correctivo/preventivo) y ejecución (propio/contratado) ──
   // Se usan count queries (head) para no chocar con el límite de filas de Supabase.
   const woCount = (build: (q: any) => any) =>
@@ -130,6 +146,7 @@ export default async function DashboardPage() {
       repairWeekLabel={repairWeekLabel}
       otMes={otMes}
       mesLabel={mesLabel}
+      otPorMes={otPorMes}
       appUser={appUser}
       equipment={equipment ?? []}
       plants={plants ?? []}

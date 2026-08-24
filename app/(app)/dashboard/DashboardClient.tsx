@@ -60,7 +60,7 @@ const QUIEN_COLORS: Record<string, string> = {
 export default function DashboardClient({
   appUser, equipment,
   plants, sectors, sectorStatusLog, recentExecutions, otStats, tipoTally, quienTally, canEdit,
-  repairWindows = [], repairWeekLabel = "", otMes = 0, mesLabel = "",
+  repairWindows = [], repairWeekLabel = "", otMes = 0, mesLabel = "", otPorMes = [],
 }: {
   appUser: any;
   equipment: any[];
@@ -77,6 +77,7 @@ export default function DashboardClient({
   repairWeekLabel?: string;
   otMes?: number;
   mesLabel?: string;
+  otPorMes?: { mes: string; cantidad: number }[];
 }) {
   const router = useRouter();
   const [plantFilter, setPlantFilter] = useState("TODAS");
@@ -327,12 +328,36 @@ export default function DashboardClient({
       })()}
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <KpiCard label="Total equipos"    value={total}         accent="#0F172A" href={equiposHref()} />
         <KpiCard label="Operativos"       value={operativos}    accent="#22C55E" sub={`${pctOperativo}% del total`} href={equiposHref({ status: "OPERATIVO" })} />
         <KpiCard label="Fuera de servicio"     value={fueraServicio} accent={fueraServicio > 0 ? "#EF4444" : "#22C55E"} href={equiposHref({ status: "FUERA_DE_SERVICIO" })} />
         <KpiCard label="Críticos no operativos" value={criticos}      accent={criticos > 0 ? "#EF4444" : "#22C55E"} href={equiposHref({ criticidad: "ALTA" })} />
-        <KpiCard label="OTs del mes"      value={otMes}         accent="#3B82F6" sub={mesLabel} href="/ordenes" />
+      </div>
+
+      {/* OTs del mes + evolución mensual */}
+      <div className="bg-white rounded-2xl border border-gray-200 p-5">
+        <div className="flex flex-col md:flex-row gap-5">
+          <Link href="/ordenes" className="md:w-44 shrink-0 flex flex-col justify-center rounded-xl hover:bg-gray-50 transition-colors md:-m-2 md:p-2">
+            <div className="text-4xl font-bold text-gray-900" style={{ fontFamily: "'Syne', sans-serif" }}>{otMes}</div>
+            <div className="text-xs text-gray-500 mt-1">OTs generadas en {mesLabel}</div>
+            <div className="text-xs text-blue-600 mt-1">Ver órdenes →</div>
+          </Link>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-medium text-gray-400 mb-2">OTs generadas por mes (últimos 12)</p>
+            <ResponsiveContainer width="100%" height={170}>
+              <BarChart data={otPorMes} barSize={16}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
+                <XAxis dataKey="mes" tick={{ fontSize: 10, fill: "#94A3B8" }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+                <YAxis tick={{ fontSize: 11, fill: "#94A3B8" }} axisLine={false} tickLine={false} allowDecimals={false} />
+                <Tooltip contentStyle={{ borderRadius: 8, fontSize: 12, border: "1px solid #E2E8F0" }} formatter={(v: any) => [`${v} OTs`]} cursor={{ fill: "#F8FAFC" }} />
+                <Bar dataKey="cantidad" radius={[4, 4, 0, 0]} name="OTs">
+                  {otPorMes.map((_, i) => <Cell key={i} fill={i === otPorMes.length - 1 ? "#1D4ED8" : "#93C5FD"} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
       </div>
 
       {/* Charts */}
