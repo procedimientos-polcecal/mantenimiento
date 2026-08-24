@@ -68,6 +68,19 @@ export default function RegistrarOTModal({ order, estado, onClose, onDone }: {
     setSaving(true); setError("");
     const photo_urls = await uploadPhotos();
 
+    // La foto que va a la planilla se guarda en Drive; si falla, queda la URL de Supabase.
+    let sheetFoto = photo_urls[0] ?? null;
+    if (sheetFoto) {
+      try {
+        const dr = await fetch("/api/fotos-drive", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: sheetFoto, name: `OT-${order.ot_number}-${Date.now()}.jpg` }),
+        });
+        const dj = await dr.json();
+        if (dr.ok && dj.link) sheetFoto = dj.link;
+      } catch { /* fallback: URL de Supabase */ }
+    }
+
     // 1) Registrar la ejecución
     await fetch("/api/ejecuciones", {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -88,7 +101,7 @@ export default function RegistrarOTModal({ order, estado, onClose, onDone }: {
         horas: duration ? Number(duration) : null,
         fecha_cierre: executedAt,                       // fecha (solo) → columna K
         observaciones: obs.trim() || null,              // → columna W
-        foto_url: photo_urls[0] ?? null,                // primera foto → columna V
+        foto_url: sheetFoto,                            // link de Drive → columna V
       }),
     });
     setSaving(false);
