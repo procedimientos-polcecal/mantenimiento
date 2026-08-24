@@ -13,6 +13,7 @@ export async function GET(request: Request) {
   const search       = searchParams.get("q");
   const tipo         = searchParams.get("tipo");  // correctivo | preventivo
   const quien        = searchParams.get("quien"); // propio | contratado | mixto
+  const especialidad = searchParams.get("especialidad"); // mecánico | eléctrico | civil | ...
   const pendientes   = searchParams.get("pendientes"); // modo priorización
   const page         = Number(searchParams.get("page") ?? 1);
   const limit        = 50;
@@ -38,6 +39,7 @@ export async function GET(request: Request) {
   if (quien === "propio")     query = query.or("quien.ilike.%propio%,quien.ilike.%interno%");
   if (quien === "contratado") query = query.ilike("quien", "%contrat%");
   if (quien === "mixto")      query = query.ilike("quien", "%mixto%");
+  if (especialidad)           query = query.ilike("especialidad", `%${especialidad.replace(/[,()*\\%]/g, "")}%`);
   if (search) {
     // Sanitizar: quitar caracteres que rompen el filtro PostgREST (,()*\)
     const safe = search.replace(/[,()*\\%]/g, "").trim();

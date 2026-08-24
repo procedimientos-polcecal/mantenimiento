@@ -9,6 +9,8 @@ import IniciarOTModal from "./IniciarOTModal";
 import { useConfirm } from "@/app/components/ConfirmProvider";
 import InfoTip from "@/app/components/InfoTip";
 
+const ESPECIALIDADES = ["MECÁNICO", "ELÉCTRICO", "CIVIL", "LUBRICACIÓN"];
+
 const ESTADOS = [
   { value: "",           label: "Todos",      color: "#64748B", bg: "#F8FAFC", dot: "#94A3B8" },
   { value: "PENDIENTES", label: "Pendientes", color: "#B45309", bg: "#FFFBEB", dot: "#F59E0B" },
@@ -57,6 +59,7 @@ export default function OrdenesClient({
   // Filtros de drill-down desde el dashboard (tipo de trabajo / ejecución).
   const [tipoFilter, setTipoFilter]   = useState(searchParams.get("tipo") ?? "");
   const [quienFilter, setQuienFilter] = useState(searchParams.get("quien") ?? "");
+  const [especialidadFilter, setEspecialidadFilter] = useState(searchParams.get("especialidad") ?? "");
   const [search, setSearch]     = useState("");
   const [page, setPage]         = useState(1);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -81,13 +84,14 @@ export default function OrdenesClient({
     if (estadoFilter) params.set("estado", estadoFilter);
     if (tipoFilter)   params.set("tipo", tipoFilter);
     if (quienFilter)  params.set("quien", quienFilter);
+    if (especialidadFilter) params.set("especialidad", especialidadFilter);
     if (search)       params.set("q", search);
     const res = await fetch(`/api/work-orders?${params}`);
     const json = await res.json();
     setOrders(json.data ?? []);
     setCount(json.count ?? (json.data?.length ?? 0));
     setLoading(false);
-  }, [page, estadoFilter, tipoFilter, quienFilter, search, sortMode, view]);
+  }, [page, estadoFilter, tipoFilter, quienFilter, especialidadFilter, search, sortMode, view]);
 
   const KANBAN_ESTADOS = ["ATRASADO", "EN_PROCESO", "POR_HACER", "REALIZADO"];
   const loadKanban = useCallback(async () => {
@@ -305,6 +309,12 @@ export default function OrdenesClient({
             </button>
           ))}
           <div className="flex items-center gap-2 sm:ml-auto">
+            <select value={especialidadFilter} onChange={(e) => { setEspecialidadFilter(e.target.value); setPage(1); }}
+              className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-700 outline-none focus:border-amber-400">
+              <option value="">Toda especialidad</option>
+              {ESPECIALIDADES.map((e) => <option key={e} value={e}>{e.charAt(0) + e.slice(1).toLowerCase()}</option>)}
+              {especialidadFilter && !ESPECIALIDADES.includes(especialidadFilter) && <option value={especialidadFilter}>{especialidadFilter}</option>}
+            </select>
             <label className="text-xs text-gray-400 hidden sm:inline">Ordenar:</label>
             <select value={sortMode} onChange={(e) => { setSortMode(e.target.value); setPage(1); }}
               className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-700 outline-none focus:border-amber-400">
