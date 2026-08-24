@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import NuevaOTModal from "./NuevaOTModal";
 import RepuestosOTModal from "./RepuestosOTModal";
 import RegistrarOTModal from "./RegistrarOTModal";
+import IniciarOTModal from "./IniciarOTModal";
 import { useConfirm } from "@/app/components/ConfirmProvider";
 import InfoTip from "@/app/components/InfoTip";
 
@@ -132,10 +133,13 @@ export default function OrdenesClient({
 
   // Al elegir un nuevo estado se abre el modal de registro (ejecución + operarios)
   const [regModal, setRegModal] = useState<{ order: any; estado: string } | null>(null);
+  const [iniciarModal, setIniciarModal] = useState<{ order: any } | null>(null);
   async function openRegistrar(order: any, estado: string) {
     // La ventana de registro (operarios/horas/checklist/fotos) solo aparece al marcar REALIZADO.
     if (estado === "REALIZADO") { setRegModal({ order, estado }); return; }
-    // Otros estados: cambio directo, sin ventana de registro.
+    // Al iniciar (En proceso) una OT con equipo, se pregunta el estado del equipo.
+    if (estado === "EN_PROCESO" && order.equipment_id) { setIniciarModal({ order }); return; }
+    // Otros estados: cambio directo, sin ventana.
     await fetch("/api/work-orders", {
       method: "PATCH", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id: order.id, estado }),
@@ -444,6 +448,14 @@ export default function OrdenesClient({
           estado={regModal.estado}
           onClose={() => setRegModal(null)}
           onDone={onRegistroDone}
+        />
+      )}
+
+      {iniciarModal && (
+        <IniciarOTModal
+          order={iniciarModal.order}
+          onClose={() => setIniciarModal(null)}
+          onDone={() => { setIniciarModal(null); if (view === "kanban") loadKanban(); else load(); }}
         />
       )}
     </div>
