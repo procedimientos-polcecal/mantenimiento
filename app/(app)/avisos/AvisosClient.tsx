@@ -34,6 +34,7 @@ export default function AvisosClient({ equipment, canEdit, canSync }: {
   const [loading, setLoading]   = useState(true);
   const [urgFilter, setUrgFilter] = useState("");
   const [search, setSearch]     = useState("");
+  const [sinOt, setSinOt]       = useState(false);
   const [page, setPage]         = useState(1);
   const [syncing, setSyncing]   = useState(false);
   const [syncMsg, setSyncMsg]   = useState("");
@@ -53,13 +54,14 @@ export default function AvisosClient({ equipment, canEdit, canSync }: {
     const params = new URLSearchParams();
     if (urgFilter) params.set("urgencia", urgFilter);
     if (search)    params.set("q", search);
+    if (sinOt)     params.set("sin_ot", "1");
     params.set("page", String(page));
     const res = await fetch(`/api/avisos?${params}`);
     const json = await res.json();
     setAvisos(json.data ?? []);
     setCount(json.count ?? 0);
     setLoading(false);
-  }, [urgFilter, search, page]);
+  }, [urgFilter, search, sinOt, page]);
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { fetch("/api/avisos/sync").then(r => r.json()).then(d => setLastSync(d.last_sync)); }, []);
@@ -238,6 +240,16 @@ export default function AvisosClient({ equipment, canEdit, canSync }: {
             {u.label}
           </button>
         ))}
+        <button onClick={() => { setSinOt((v) => !v); setPage(1); }}
+          className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold border transition-all"
+          style={{
+            color:       sinOt ? "#B45309" : "#64748B",
+            background:  sinOt ? "#FFFBEB" : "#fff",
+            borderColor: sinOt ? "#B45309" : "#E2E8F0",
+          }}
+          title="Solo avisos que todavía no tienen orden de trabajo">
+          Sin OT
+        </button>
         <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }}
           placeholder="Buscar N° OA, equipo, sector, descripción..."
           className="w-full sm:w-64 sm:ml-auto rounded-lg border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-100" />

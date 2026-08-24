@@ -92,6 +92,7 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const urgencia = searchParams.get("urgencia");
   const search   = searchParams.get("q");
+  const sinOt    = searchParams.get("sin_ot"); // solo avisos sin OT asignada
   const page     = Number(searchParams.get("page") ?? 1);
   const limit    = 50;
 
@@ -104,6 +105,10 @@ export async function GET(request: Request) {
     .range((page - 1) * limit, page * limit - 1);
 
   if (urgencia) query = query.ilike("urgencia", `%${urgencia}%`);
+  if (sinOt) {
+    // Sin OT: sin work_order_id y sin ot_asignada (null o vacía)
+    query = query.is("work_order_id", null).or("ot_asignada.is.null,ot_asignada.eq.");
+  }
   if (search) {
     const safe = search.replace(/[,()*\\%]/g, "").trim();
     if (safe) query = query.or(`descripcion.ilike.%${safe}%,equipo_raw.ilike.%${safe}%,sector_raw.ilike.%${safe}%,oa_number.ilike.%${safe}%`);
