@@ -182,7 +182,7 @@ export async function PATCH(request: Request) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
-  const { id, estado, operario_1, operario_2, operario_3, horas, fecha_ejecucion, contratista } = await request.json();
+  const { id, estado, operario_1, operario_2, operario_3, horas, fecha_ejecucion, fecha_cierre, contratista, observaciones, foto_url } = await request.json();
   if (!id) return NextResponse.json({ error: "ID requerido" }, { status: 400 });
   if (!estado || !VALID_ESTADOS.includes(estado)) {
     return NextResponse.json({ error: "Estado inválido" }, { status: 400 });
@@ -197,6 +197,7 @@ export async function PATCH(request: Request) {
   if (contratista !== undefined) update.contratista = contratista?.toString().trim() || null;
   if (horas !== undefined) update.horas = horas === "" || horas == null ? null : Number(horas) || null;
   if (fecha_ejecucion !== undefined) update.fecha_ejecucion = fecha_ejecucion || null;
+  if (fecha_cierre !== undefined) update.fecha_cierre = fecha_cierre || null;
 
   const { data: updated, error } = await admin
     .from("work_orders").update(update).eq("id", id).select().single();
@@ -206,7 +207,8 @@ export async function PATCH(request: Request) {
   let sheets_error: string | null = null;
   if (updated.sheets_row && estado) {
     try {
-      await updateSheetRow(updated);
+      // observaciones/foto no se guardan en work_orders; se pasan solo para el write-back
+      await updateSheetRow({ ...updated, observaciones, foto_url });
     } catch (e: any) {
       sheets_error = e.message ?? "Error al escribir en Sheets";
       console.error("Sheets write-back error:", sheets_error);
@@ -332,6 +334,9 @@ async function updateSheetRow(ot: any): Promise<void> {
   if (ot.operario_3 !== undefined) data.push({ range: `${T}!R${row}`, values: [[ot.operario_3 ?? ""]] });
   if (ot.horas !== undefined && ot.horas !== null) data.push({ range: `${T}!O${row}`, values: [[String(ot.horas)]] });
   if (ot.fecha_ejecucion) data.push({ range: `${T}!J${row}`, values: [[isoToExcelDateShort(ot.fecha_ejecucion)]] });
+  if (ot.fecha_cierre)    data.push({ range: `${T}!K${row}`, values: [[isoToExcelDateShort(ot.fecha_cierre)]] });
+  if (ot.foto_url !== undefined && ot.foto_url)         data.push({ range: `${T}!V${row}`, values: [[ot.foto_url]] });
+  if (ot.observaciones !== undefined && ot.observaciones) data.push({ range: `${T}!W${row}`, values: [[ot.observaciones]] });
 
   const res = await fetch(
     `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values:batchUpdate`,

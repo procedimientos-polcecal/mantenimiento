@@ -9,7 +9,7 @@ export default function RegistrarOTModal({ order, estado, onClose, onDone }: {
 }) {
   const meta = estadoMeta(estado);
   const [execStatus, setExecStatus] = useState(estado === "REALIZADO" ? "completado" : "parcial");
-  const [executedAt, setExecutedAt] = useState(new Date().toISOString().slice(0, 16));
+  const [executedAt, setExecutedAt] = useState(new Date().toISOString().slice(0, 10));
   const [duration, setDuration] = useState(order.horas != null ? String(order.horas) : "");
   const [obs, setObs] = useState("");
   const [op1, setOp1] = useState(order.operario_1 ?? "");
@@ -86,7 +86,9 @@ export default function RegistrarOTModal({ order, estado, onClose, onDone }: {
         id: order.id, estado,
         operario_1: op1, operario_2: op2, operario_3: op3, contratista,
         horas: duration ? Number(duration) : null,
-        fecha_ejecucion: executedAt.slice(0, 10),
+        fecha_cierre: executedAt,                       // fecha (solo) → columna K
+        observaciones: obs.trim() || null,              // → columna W
+        foto_url: photo_urls[0] ?? null,                // primera foto → columna V
       }),
     });
     setSaving(false);
@@ -115,8 +117,8 @@ export default function RegistrarOTModal({ order, estado, onClose, onDone }: {
           </Field>
         </div>
 
-        <Field label="Fecha y hora">
-          <input type="datetime-local" value={executedAt} onChange={(e) => setExecutedAt(e.target.value)} className="input" />
+        <Field label="Fecha">
+          <input type="date" value={executedAt} onChange={(e) => setExecutedAt(e.target.value)} className="input" />
         </Field>
 
         <div className="rounded-lg px-3 py-2 text-xs" style={{ background: meta.bg, color: meta.color }}>

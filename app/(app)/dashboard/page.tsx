@@ -8,6 +8,8 @@ export default async function DashboardPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
+  const since52 = new Date(Date.now() - 7 * 52 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
   const [
     { data: appUser },
     { data: equipment },
@@ -26,18 +28,18 @@ export default async function DashboardPage() {
       .select("*, sector:sector_id(name, plants(name)), changed_by_user:changed_by(full_name)")
       .order("changed_at", { ascending: false })
       .limit(20),
-    // OT realizadas de las últimas 52 semanas (por fecha de ejecución).
+    // OT realizadas de las últimas 52 semanas (por fecha de cierre, con fallback a ejecución).
     supabase.from("work_orders")
-      .select("ot_number, equipo_raw, fecha_ejecucion, horas")
+      .select("ot_number, equipo_raw, fecha_ejecucion, fecha_cierre, horas")
       .eq("estado", "REALIZADO")
-      .gte("fecha_ejecucion", new Date(Date.now() - 7 * 52 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10))
-      .order("fecha_ejecucion", { ascending: false })
+      .or(`fecha_cierre.gte.${since52},fecha_ejecucion.gte.${since52}`)
+      .order("fecha_cierre", { ascending: false })
       .limit(3000),
   ]);
 
-  // Forma que espera el gráfico de realizadas
+  // Forma que espera el gráfico de realizadas (fecha de cierre o, si no hay, de ejecución)
   const realizadas = (recentExecutions ?? []).map((o: any) => ({
-    executed_at: o.fecha_ejecucion,
+    executed_at: o.fecha_cierre ?? o.fecha_ejecucion,
     ot_number: o.ot_number,
     equipo: o.equipo_raw,
     hours: o.horas,
