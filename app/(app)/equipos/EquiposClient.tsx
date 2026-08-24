@@ -8,7 +8,6 @@ import InfoTip from "@/app/components/InfoTip";
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   OPERATIVO:          { label: "Operativo",        color: "bg-green-100 text-green-800" },
   EN_MANTENIMIENTO:   { label: "En mantenimiento", color: "bg-blue-100 text-blue-800" },
-  EN_REPARACION:      { label: "En reparación",    color: "bg-red-100 text-red-800" },
   STANDBY:            { label: "Standby",           color: "bg-yellow-100 text-yellow-800" },
   FUERA_DE_SERVICIO:  { label: "Fuera de servicio", color: "bg-gray-100 text-gray-600" },
   DADO_DE_BAJA:       { label: "Dado de baja",      color: "bg-slate-100 text-slate-500" },
@@ -85,8 +84,7 @@ export default function EquiposClient({ plants, sectors, equipment, canEdit }: {
       ["Estado (valores válidos)","","Criticidad (valores válidos)"],
       ["OPERATIVO","","ALTA"],
       ["EN_MANTENIMIENTO","","MEDIA"],
-      ["EN_REPARACION","","BAJA"],
-      ["STANDBY","",""],
+      ["STANDBY","","BAJA"],
       ["FUERA_DE_SERVICIO","",""],
       ["DADO_DE_BAJA","",""],
     ]);

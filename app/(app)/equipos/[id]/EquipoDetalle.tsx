@@ -15,7 +15,6 @@ const OT_ESTADO: Record<string, { label: string; color: string; bg: string; dot:
 const STATUS_OPTIONS = [
   { value: "OPERATIVO",         label: "Operativo" },
   { value: "EN_MANTENIMIENTO",  label: "En mantenimiento" },
-  { value: "EN_REPARACION",     label: "En reparación" },
   { value: "STANDBY",           label: "Standby" },
   { value: "FUERA_DE_SERVICIO", label: "Fuera de servicio" },
   { value: "DADO_DE_BAJA",      label: "Dado de baja" },

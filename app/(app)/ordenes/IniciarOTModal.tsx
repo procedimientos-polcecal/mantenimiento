@@ -7,10 +7,9 @@ import { createClient } from "@/lib/supabase/client";
 const EQ_STATUS = [
   { value: "OPERATIVO",         label: "Operativo",         color: "#16A34A", bg: "#F0FDF4" },
   { value: "EN_MANTENIMIENTO",  label: "En mantenimiento",  color: "#1D4ED8", bg: "#EFF6FF" },
-  { value: "EN_REPARACION",     label: "En reparación",     color: "#DC2626", bg: "#FEF2F2" },
   { value: "FUERA_DE_SERVICIO", label: "Fuera de servicio", color: "#64748B", bg: "#F1F5F9" },
 ];
-const REQUIERE_MOTIVO = ["EN_MANTENIMIENTO", "EN_REPARACION", "FUERA_DE_SERVICIO"];
+const REQUIERE_MOTIVO = ["EN_MANTENIMIENTO", "FUERA_DE_SERVICIO"];
 const LABELS: Record<string, string> = Object.fromEntries(EQ_STATUS.map((s) => [s.value, s.label]));
 
 export default function IniciarOTModal({ order, onClose, onDone }: {

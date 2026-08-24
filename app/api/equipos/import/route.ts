@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import * as XLSX from "xlsx";
 
-const VALID_STATUSES = ["OPERATIVO","EN_MANTENIMIENTO","EN_REPARACION","STANDBY","FUERA_DE_SERVICIO","DADO_DE_BAJA"];
+const VALID_STATUSES = ["OPERATIVO","EN_MANTENIMIENTO","STANDBY","FUERA_DE_SERVICIO","DADO_DE_BAJA"];
 const VALID_CRITICALITY = ["ALTA","MEDIA","BAJA"];
 
 export async function POST(request: Request) {
@@ -50,7 +50,8 @@ export async function POST(request: Request) {
     const name = String(row["Nombre"] ?? row["nombre"] ?? row["name"] ?? "").trim();
     const plantName = String(row["Planta"] ?? row["planta"] ?? row["plant"] ?? "").trim().toUpperCase();
     const sectorName = String(row["Sector"] ?? row["sector"] ?? "").trim().toUpperCase();
-    const status = String(row["Estado"] ?? row["estado"] ?? row["status"] ?? "OPERATIVO").trim().toUpperCase();
+    let status = String(row["Estado"] ?? row["estado"] ?? row["status"] ?? "OPERATIVO").trim().toUpperCase();
+    if (status === "EN_REPARACION") status = "EN_MANTENIMIENTO"; // unificado
     const criticality = String(row["Criticidad"] ?? row["criticidad"] ?? "MEDIA").trim().toUpperCase();
     const power_kw = row["kW"] ?? row["Potencia_kW"] ?? row["power_kw"] ?? null;
     const description = String(row["Descripción"] ?? row["Descripcion"] ?? row["description"] ?? "").trim() || null;

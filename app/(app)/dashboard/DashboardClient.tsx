@@ -14,7 +14,6 @@ import InfoTip from "@/app/components/InfoTip";
 const STATUS_META: Record<string, { label: string; color: string }> = {
   OPERATIVO:         { label: "Operativo",        color: "#22C55E" },
   EN_MANTENIMIENTO:  { label: "En mantenimiento", color: "#3B82F6" },
-  EN_REPARACION:     { label: "En reparación",    color: "#EF4444" },
   STANDBY:           { label: "Standby",           color: "#F59E0B" },
   FUERA_DE_SERVICIO: { label: "Fuera de servicio", color: "#94A3B8" },
   DADO_DE_BAJA:      { label: "Dado de baja",      color: "#64748B" },
@@ -156,8 +155,8 @@ export default function DashboardClient({
   const total = filteredEquipment.length;
   const operativos = filteredEquipment.filter((e) => e.status === "OPERATIVO").length;
   const pctOperativo = total > 0 ? Math.round((operativos / total) * 100) : 0;
-  // Equipos fuera de servicio o en reparación (no disponibles)
-  const fueraServicio = filteredEquipment.filter((e) => ["FUERA_DE_SERVICIO", "EN_REPARACION"].includes(e.status)).length;
+  // Equipos fuera de servicio (no disponibles). "En mantenimiento" no cuenta acá.
+  const fueraServicio = filteredEquipment.filter((e) => e.status === "FUERA_DE_SERVICIO").length;
   // Equipos de criticidad ALTA que no están operativos
   const criticos = filteredEquipment.filter((e) => e.criticality === "ALTA" && e.status !== "OPERATIVO").length;
   const filterLabel = sectorFilter !== "TODOS" ? sectorFilter : plantFilter !== "TODAS" ? plantFilter : null;
