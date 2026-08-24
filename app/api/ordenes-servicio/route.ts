@@ -23,7 +23,7 @@ export async function GET(request: Request) {
     .order("os_number", { ascending: false })
     .range((page - 1) * limit, page * limit - 1);
   if (area)   query = query.eq("area", area);
-  if (estado) query = query.ilike("estado", `%${estado}%`);
+  if (estado) query = query.ilike("estado", estado); // match exacto (case-insensitive)
   if (search) {
     const safe = search.replace(/[,()*\\%]/g, "").trim();
     if (safe) query = query.or(`descripcion.ilike.%${safe}%,equipo_raw.ilike.%${safe}%,sector_raw.ilike.%${safe}%,proveedor_elegido.ilike.%${safe}%`);

@@ -36,6 +36,7 @@ export default function OrdenesServicioClient({ equipment, canEdit, canSync }: {
   const [count, setCount]     = useState(0);
   const [loading, setLoading] = useState(true);
   const [areaFilter, setAreaFilter] = useState("");
+  const [estadoFilter, setEstadoFilter] = useState("");
   const [search, setSearch]   = useState("");
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState("");
@@ -54,13 +55,14 @@ export default function OrdenesServicioClient({ equipment, canEdit, canSync }: {
     setLoading(true);
     const params = new URLSearchParams();
     if (areaFilter) params.set("area", areaFilter);
+    if (estadoFilter) params.set("estado", estadoFilter);
     if (search)     params.set("q", search);
     params.set("page", String(page));
     const res = await fetch(`/api/ordenes-servicio?${params}`);
     const json = await res.json();
     setRows(json.data ?? []); setCount(json.count ?? 0);
     setLoading(false);
-  }, [areaFilter, search, page]);
+  }, [areaFilter, estadoFilter, search, page]);
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { fetch("/api/ordenes-servicio/sync").then(r => r.json()).then(d => setLastSync(d.last_sync)); }, []);
@@ -180,6 +182,21 @@ export default function OrdenesServicioClient({ equipment, canEdit, canSync }: {
           className="w-full sm:w-64 sm:ml-auto rounded-lg border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-amber-400" />
       </div>
 
+      {/* Filtro por estado */}
+      <div className="flex gap-2 flex-wrap">
+        {["", ...ESTADOS_OS].map((s) => {
+          const active = estadoFilter === s;
+          const m = s ? estadoColor(s) : { c: "#64748B", b: "#F8FAFC" };
+          return (
+            <button key={s || "todos"} onClick={() => { setEstadoFilter(s); setPage(1); }}
+              className="rounded-full px-3 py-1.5 text-xs font-semibold border transition-all"
+              style={{ color: active ? m.c : "#64748B", background: active ? m.b : "#fff", borderColor: active ? m.c : "#E2E8F0" }}>
+              {s || "Todos"}
+            </button>
+          );
+        })}
+      </div>
+
       {/* Lista */}
       {loading ? (
         <div className="text-center py-12 text-gray-400 text-sm">Cargando...</div>
@@ -254,10 +271,11 @@ export default function OrdenesServicioClient({ equipment, canEdit, canSync }: {
                             const active = (o.estado ?? "").toUpperCase() === s;
                             return (
                               <button key={s} onClick={() => s === "EN PROCESO" ? setEnProcesoOS(o) : changeEstado(o, s)}
-                                disabled={active || estadoBusy === o.id}
+                                disabled={estadoBusy === o.id || (active && s !== "EN PROCESO")}
+                                title={s === "EN PROCESO" && active ? "Editar quién lo realiza" : undefined}
                                 className="text-xs font-semibold px-2.5 py-1 rounded-full border transition-all disabled:opacity-40"
                                 style={{ color: m.c, background: m.b, borderColor: m.c + "44" }}>
-                                {s}
+                                {s}{s === "EN PROCESO" && active ? " ✎" : ""}
                               </button>
                             );
                           })}

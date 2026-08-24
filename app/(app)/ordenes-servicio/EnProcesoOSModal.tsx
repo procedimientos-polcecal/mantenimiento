@@ -26,9 +26,10 @@ export default function EnProcesoOSModal({ os, onClose, onDone }: {
       .then((d) => {
         const rows: any[] = d.data ?? [];
         setCots(rows);
-        const elegido = rows.find((r) => r.eleccion);
-        if (elegido) setPick(elegido.proveedor);
-        else if (os.proveedor_elegido) setPick(os.proveedor_elegido);
+        // Al editar (ya EN PROCESO) se prioriza el proveedor actual; si no hay,
+        // se toma el elegido de la comparativa.
+        if (os.proveedor_elegido) setPick(os.proveedor_elegido);
+        else { const elegido = rows.find((r) => r.eleccion); if (elegido) setPick(elegido.proveedor); }
         setLoading(false);
       })
       .catch(() => setLoading(false));
