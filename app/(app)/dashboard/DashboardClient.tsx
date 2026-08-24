@@ -153,14 +153,13 @@ export default function DashboardClient({
       .reduce((a, s) => a + s.count, 0),
     [otStats]
   );
-  const otAtrasadas = useMemo(() =>
-    otStats.find((s) => s.estado === "ATRASADO")?.count ?? 0,
-    [otStats]
-  );
-
   const total = filteredEquipment.length;
   const operativos = filteredEquipment.filter((e) => e.status === "OPERATIVO").length;
   const pctOperativo = total > 0 ? Math.round((operativos / total) * 100) : 0;
+  // Equipos fuera de servicio o en reparación (no disponibles)
+  const fueraServicio = filteredEquipment.filter((e) => ["FUERA_DE_SERVICIO", "EN_REPARACION"].includes(e.status)).length;
+  // Equipos de criticidad ALTA que no están operativos
+  const criticos = filteredEquipment.filter((e) => e.criticality === "ALTA" && e.status !== "OPERATIVO").length;
   const filterLabel = sectorFilter !== "TODOS" ? sectorFilter : plantFilter !== "TODAS" ? plantFilter : null;
 
   // Drill-down: /equipos preservando el filtro de planta/sector activo del dashboard.
@@ -330,8 +329,8 @@ export default function DashboardClient({
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <KpiCard label="Total equipos"    value={total}         accent="#0F172A" href={equiposHref()} />
         <KpiCard label="Operativos"       value={operativos}    accent="#22C55E" sub={`${pctOperativo}% del total`} href={equiposHref({ status: "OPERATIVO" })} />
-        <KpiCard label="OTs atrasadas"    value={otAtrasadas}   accent={otAtrasadas > 0 ? "#EF4444" : "#22C55E"} href="/ordenes?estado=ATRASADO" />
-        <KpiCard label="OTs pendientes"   value={otPendientes}  accent="#F59E0B" href="/ordenes?estado=PENDIENTES" />
+        <KpiCard label="Fuera de servicio"     value={fueraServicio} accent={fueraServicio > 0 ? "#EF4444" : "#22C55E"} href={equiposHref({ status: "FUERA_DE_SERVICIO" })} />
+        <KpiCard label="Críticos no operativos" value={criticos}      accent={criticos > 0 ? "#EF4444" : "#22C55E"} href={equiposHref({ criticidad: "ALTA" })} />
       </div>
 
       {/* Charts */}
