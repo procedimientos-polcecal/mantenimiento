@@ -55,6 +55,12 @@ export default function ProduccionClient({ sectors, canEdit, pendOT = [], pendOS
     return m;
   }, [pendOS]);
   const pendCount = (sectorId: string) => (otBySector[sectorId]?.length ?? 0) + (osBySector[sectorId]?.length ?? 0);
+  // Sectores con una OT pendiente que requiere pararlos
+  const paradaSectores = useMemo(() => {
+    const s = new Set<string>();
+    for (const o of pendOT) if (o.requiere_parada_sector) s.add(o.sector_id);
+    return s;
+  }, [pendOT]);
 
   const weekIso = iso(weekStart);
   const dayDates = useMemo(
@@ -208,8 +214,12 @@ export default function ProduccionClient({ sectors, canEdit, pendOT = [], pendOS
                         return (
                           <tr key={s.id} className="border-t border-gray-100">
                             <td className="px-3 py-2 font-medium text-gray-800">
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 flex-wrap">
                                 <span>{s.name}</span>
+                                {paradaSectores.has(s.id) && (
+                                  <span className="inline-flex items-center rounded-full bg-red-50 border border-red-200 px-1.5 py-0.5 text-[10px] font-bold text-red-600"
+                                    title="Hay una OT pendiente que requiere parar este sector">⛔ Parar</span>
+                                )}
                                 {pendCount(s.id) > 0 && (
                                   <button onClick={() => setPendSector(s)}
                                     className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 hover:bg-amber-100"

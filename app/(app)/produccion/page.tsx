@@ -21,7 +21,7 @@ export default async function ProduccionPage() {
     supabase.from("sectors").select("id, name, plant_id, plants(name)").order("name"),
     // OT pendientes (no realizadas) con sector, para cruzar con las ventanas libres
     supabase.from("work_orders")
-      .select("sector_id, ot_number, descripcion, equipo_raw, estado, prioridad")
+      .select("sector_id, ot_number, descripcion, equipo_raw, estado, prioridad, requiere_parada_sector")
       .in("estado", ["POR_HACER", "EN_PROCESO", "ATRASADO"])
       .not("sector_id", "is", null),
     // OS con sector, de la fecha de corte en adelante (las activas se filtran abajo)

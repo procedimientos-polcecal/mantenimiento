@@ -56,6 +56,7 @@ export default function NuevaOTModal({ sectors, equipment, onClose, onCreated }:
     operario_2:     "",
     operario_3:     "",
     prioridad:      "MEDIA",
+    requiere_parada_sector: false as boolean,
   });
 
   function handlePhotos(files: FileList | null) {
@@ -192,6 +193,17 @@ export default function NuevaOTModal({ sectors, equipment, onClose, onCreated }:
             <textarea value={form.descripcion} onChange={e => f("descripcion", e.target.value)}
               rows={3} className="input resize-none" placeholder="Describí el trabajo a realizar..." />
           </F>
+
+          {/* ¿Requiere parar el sector? */}
+          <label className="flex items-center gap-2.5 rounded-lg border px-3 py-2.5 cursor-pointer transition-colors"
+            style={{ borderColor: form.requiere_parada_sector ? "#DC2626" : "#E2E8F0", background: form.requiere_parada_sector ? "#FEF2F2" : "#fff" }}>
+            <input type="checkbox" checked={form.requiere_parada_sector}
+              onChange={e => setForm(p => ({ ...p, requiere_parada_sector: e.target.checked }))}
+              className="rounded" />
+            <span className="text-sm font-medium" style={{ color: form.requiere_parada_sector ? "#DC2626" : "#374151" }}>
+              ⛔ Requiere parar el sector para realizar el trabajo
+            </span>
+          </label>
 
           {/* Tipo / especialidad / quien */}
           <div className="grid grid-cols-3 gap-4">

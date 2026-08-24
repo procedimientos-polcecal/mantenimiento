@@ -60,7 +60,7 @@ const QUIEN_COLORS: Record<string, string> = {
 export default function DashboardClient({
   appUser, equipment,
   plants, sectors, sectorStatusLog, recentExecutions, otStats, tipoTally, quienTally, canEdit,
-  repairWindows = [], repairWeekLabel = "", otMes = 0, mesLabel = "", otPorMes = [],
+  repairWindows = [], repairWeekLabel = "", otMes = 0, mesLabel = "", otPorMes = [], paradaSectorIds = [],
 }: {
   appUser: any;
   equipment: any[];
@@ -78,7 +78,9 @@ export default function DashboardClient({
   otMes?: number;
   mesLabel?: string;
   otPorMes?: { mes: string; cantidad: number }[];
+  paradaSectorIds?: string[];
 }) {
+  const paradaSet = new Set(paradaSectorIds);
   const router = useRouter();
   const [plantFilter, setPlantFilter] = useState("TODAS");
   const [sectorFilter, setSectorFilter] = useState("TODOS");
@@ -266,6 +268,10 @@ export default function DashboardClient({
                           style={{ color: meta.color, borderColor: meta.border, background: "white" }}>
                           {meta.label}
                         </span>
+                        {paradaSet.has(sector.id) && (
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-50 text-red-600 border border-red-200"
+                            title="Hay una OT pendiente que requiere parar este sector">⛔ Parar</span>
+                        )}
                       </div>
                       {plantFilter === "TODAS" && (
                         <p className="text-xs text-gray-400 mt-0.5">{sector.plants?.name}</p>

@@ -73,6 +73,7 @@ export async function POST(request: Request) {
     fecha, fecha_ejecucion, fecha_cierre,
     estado, contratista, horas, operario_1, operario_2, operario_3, prioridad,
     schedule_id, frecuencia, proxima_fecha, reference_photos, aviso_id,
+    requiere_parada_sector,
   } = body;
 
   if (!descripcion?.trim()) {
@@ -108,6 +109,7 @@ export async function POST(request: Request) {
     operario_2:      operario_2?.trim() || null,
     operario_3:      operario_3?.trim() || null,
     prioridad:       prioridad || null,
+    requiere_parada_sector: !!requiere_parada_sector,
     schedule_id:     schedule_id || null,
     frecuencia:      frecuencia || null,
     proxima_fecha:   proxima_fecha || null,

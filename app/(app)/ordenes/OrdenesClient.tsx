@@ -408,6 +408,9 @@ export default function OrdenesClient({
                         <p className="text-sm font-medium text-gray-900 truncate">{o.descripcion ?? "—"}</p>
                         <p className="text-xs text-gray-400 truncate">{o.sector_raw}{o.equipo_raw ? ` · ${o.equipo_raw}` : ""}</p>
                       </div>
+                      {o.requiere_parada_sector && o.estado !== "REALIZADO" && (
+                        <span className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-50 text-red-600 border border-red-200" title="Requiere parar el sector">⛔ Parar</span>
+                      )}
                       {prioColor && (
                         <span className="shrink-0 text-xs font-semibold hidden sm:inline" style={{ color: prioColor }} title="Prioridad">
                           {prio.charAt(0) + prio.slice(1).toLowerCase()}

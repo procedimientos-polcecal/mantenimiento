@@ -124,8 +124,10 @@ export default async function DashboardPage() {
   const nmIso = nm.toISOString().slice(0, 10);
   const [{ data: prodPlans }, { data: otSectors }] = await Promise.all([
     supabase.from("production_plan").select("sector_id, days").eq("week_start", nmIso),
-    supabase.from("work_orders").select("sector_id").in("estado", ["POR_HACER", "EN_PROCESO", "ATRASADO"]).not("sector_id", "is", null),
+    supabase.from("work_orders").select("sector_id, requiere_parada_sector").in("estado", ["POR_HACER", "EN_PROCESO", "ATRASADO"]).not("sector_id", "is", null),
   ]);
+  // Sectores con una OT pendiente que requiere pararlos
+  const paradaSectorIds = [...new Set((otSectors ?? []).filter((o: any) => o.requiere_parada_sector).map((o: any) => o.sector_id))];
   const DIAS_D = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
   const planMap = new Map((prodPlans ?? []).map((p: any) => [p.sector_id, p.days]));
   const otCountBySector: Record<string, number> = {};
@@ -147,6 +149,7 @@ export default async function DashboardPage() {
       otMes={otMes}
       mesLabel={mesLabel}
       otPorMes={otPorMes}
+      paradaSectorIds={paradaSectorIds}
       appUser={appUser}
       equipment={equipment ?? []}
       plants={plants ?? []}
