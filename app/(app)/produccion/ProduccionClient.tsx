@@ -40,6 +40,7 @@ export default function ProduccionClient({ sectors, canEdit, pendOT = [], pendOS
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [editCell, setEditCell] = useState<{ sectorId: string; dayIdx: number } | null>(null);
+  const [turnoFilter, setTurnoFilter] = useState<string>(""); // "" | "M" | "T" | "N"
   const [pendSector, setPendSector] = useState<any | null>(null);
 
   // Mantenimiento pendiente por sector (para cruzar con las ventanas libres)
@@ -159,6 +160,15 @@ export default function ProduccionClient({ sectors, canEdit, pendOT = [], pendOS
           </span>
         ))}
         <span className="text-gray-400">· Turnos: M (mañana) / T (tarde) / N (noche)</span>
+        <div className="flex items-center gap-1 ml-auto">
+          <span className="text-gray-400">Filtrar turno:</span>
+          {[{ v: "", l: "Todos" }, { v: "M", l: "Mañana" }, { v: "T", l: "Tarde" }, { v: "N", l: "Noche" }].map((o) => (
+            <button key={o.v || "todos"} onClick={() => setTurnoFilter(o.v)}
+              className={`px-2 py-1 rounded-md text-xs font-semibold transition-colors ${turnoFilter === o.v ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-500 hover:text-gray-700"}`}>
+              {o.l}
+            </button>
+          ))}
+        </div>
       </div>
 
       {loading ? (
@@ -167,6 +177,11 @@ export default function ProduccionClient({ sectors, canEdit, pendOT = [], pendOS
         <div className="space-y-6">
           {Object.entries(byPlant).map(([plant, plantSectors]) => {
             const freeDays = plantFreeDays(plantSectors);
+            // Filtro por turno: solo sectores que trabajan ese turno algún día
+            const visibleSectors = turnoFilter
+              ? plantSectors.filter((s) => getRec(s.id).turnos.some((t) => (t ?? "").includes(turnoFilter)))
+              : plantSectors;
+            if (turnoFilter && visibleSectors.length === 0) return null;
             return (
               <div key={plant} className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
                 <div className="px-4 py-2.5 border-b border-gray-100 bg-gray-50">
@@ -188,7 +203,7 @@ export default function ProduccionClient({ sectors, canEdit, pendOT = [], pendOS
                       </tr>
                     </thead>
                     <tbody>
-                      {plantSectors.map((s) => {
+                      {visibleSectors.map((s) => {
                         const rec = getRec(s.id);
                         return (
                           <tr key={s.id} className="border-t border-gray-100">
@@ -208,11 +223,12 @@ export default function ProduccionClient({ sectors, canEdit, pendOT = [], pendOS
                               const m = ESTADO[st] ?? ESTADO.LIBRE;
                               const turno = rec.turnos[i] ?? "";
                               const motivo = rec.motivos[i] ?? "";
+                              const dim = turnoFilter && !turno.includes(turnoFilter); // no trabaja ese turno ese día
                               return (
                                 <td key={i} className="px-1 py-1.5 text-center align-top">
                                   <button onClick={() => canEdit && setEditCell({ sectorId: s.id, dayIdx: i })} disabled={!canEdit}
                                     className="w-full min-w-[44px] rounded-md py-1 transition-colors disabled:cursor-default"
-                                    style={{ background: m.bg, color: m.color, border: `1px solid ${m.color}33` }}
+                                    style={{ background: m.bg, color: m.color, border: `1px solid ${m.color}33`, opacity: dim ? 0.3 : 1 }}
                                     title={[m.label, turno && `Turnos: ${turno}`, motivo && `Motivo: ${motivo}`].filter(Boolean).join(" · ")}>
                                     <div className="text-[10px] font-semibold leading-tight">{m.short}</div>
                                     {turno && <div className="text-[9px] leading-tight opacity-80">{turno.split("").join("·")}</div>}
