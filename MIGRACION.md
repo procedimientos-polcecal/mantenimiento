@@ -29,7 +29,8 @@ Variables). Varias hacen que ciertos endpoints **fallen cerrado** si faltan:
 | `GOOGLE_SHEETS_ID`            | No hay lectura/escritura de Sheets                   |
 | `GOOGLE_SHEETS_TAB`           | Default "OT"                                          |
 | `GOOGLE_SHEETS_COMPARATIVAS_ID` | No sincroniza ni escribe las comparativas de proveedores |
-| `GOOGLE_DRIVE_FOTOS_FOLDER_ID` | Las fotos de OT no se suben a Drive (usa la URL de Supabase como respaldo) |
+| `DRIVE_WEBAPP_URL`             | Las fotos de OT no se suben a Drive (usa la URL de Supabase como respaldo) |
+| `DRIVE_WEBAPP_SECRET`          | Secreto compartido con el Web App de Apps Script (ver docs/apps-script-fotos-drive.gs) |
 | `GOOGLE_SERVICE_ACCOUNT_JSON` | JWT de Google no se firma                            |
 | `EMAIL_FROM` / `EMAIL_ALERTS_TO` | Remitente/destinatarios de alertas                |
 | `NEXT_PUBLIC_APP_URL`         | Los links de los mails apuntan al dominio viejo      |
