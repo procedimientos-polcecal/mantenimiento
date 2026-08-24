@@ -472,8 +472,8 @@ export default function DashboardClient({
         </div>
       )}
 
-      {/* Execution trend */}
-      <ExecutionTrendCard recentExecutions={recentExecutions} />
+      {/* OT realizadas por semana */}
+      <ExecutionTrendCard realizadas={recentExecutions} />
 
       {/* Sector status modal */}
       {statusModal && (
@@ -621,14 +621,9 @@ function KpiCard({ label, value, accent, sub, href }: { label: string; value: nu
   return <div className="bg-white rounded-xl border border-gray-200 p-4 relative overflow-hidden">{inner}</div>;
 }
 
-// ── Ejecuciones por semana (interactivo) ───────────────────────────────────────
+// ── OT realizadas por semana (interactivo) ─────────────────────────────────────
 
-const EXEC_STATUS_META: Record<string, { label: string; color: string }> = {
-  completado: { label: "Completado", color: "#22C55E" },
-  parcial:    { label: "Parcial",    color: "#F59E0B" },
-  cancelado:  { label: "Cancelado",  color: "#EF4444" },
-  otro:       { label: "Otro",       color: "#94A3B8" },
-};
+const REALIZADA_COLOR = "#22C55E";
 const RANGE_OPTIONS = [8, 12, 26];
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -638,53 +633,38 @@ function mondayOf(d: Date): Date {
   m.setDate(m.getDate() - ((m.getDay() + 6) % 7)); // lunes de esa semana
   return m;
 }
-function normStatus(s: string): string {
-  return ["completado", "parcial", "cancelado"].includes(s) ? s : "otro";
-}
 
-function ExecutionTrendCard({ recentExecutions }: { recentExecutions: any[] }) {
+// `realizadas`: OT con estado REALIZADO. Cada item: { executed_at, ot_number, equipo, hours }.
+function ExecutionTrendCard({ realizadas }: { realizadas: any[] }) {
   const [range, setRange] = useState(8);
-  const [hidden, setHidden] = useState<Set<string>>(new Set());
   const [selectedKey, setSelectedKey] = useState<number | null>(null);
 
-  const { chart, currTotal, prevTotal, hasOtro } = useMemo(() => {
-    // Agrupa ejecuciones por lunes de su semana.
+  const { chart, currTotal, prevTotal } = useMemo(() => {
+    // Agrupa por lunes de la semana de ejecución.
     const buckets = new Map<number, any[]>();
-    for (const ex of recentExecutions) {
-      if (!ex.executed_at) continue;
-      const key = mondayOf(new Date(ex.executed_at)).getTime();
+    for (const r of realizadas) {
+      if (!r.executed_at) continue;
+      const key = mondayOf(new Date(r.executed_at)).getTime();
       let arr = buckets.get(key);
       if (!arr) { arr = []; buckets.set(key, arr); }
-      arr.push(ex);
+      arr.push(r);
     }
     const thisMonday = mondayOf(new Date());
 
-    // Ventana continua de `count` semanas, corrida `offset` semanas hacia atrás.
     const buildWindow = (offset: number, count: number) => {
       const rows: any[] = [];
       for (let i = count - 1; i >= 0; i--) {
         const start = new Date(thisMonday.getTime() - (offset + i) * WEEK_MS);
-        const items = buckets.get(start.getTime()) ?? [];
-        const row: any = {
+        const items = (buckets.get(start.getTime()) ?? [])
+          .slice()
+          .sort((a, b) => (a.executed_at < b.executed_at ? 1 : -1));
+        rows.push({
           key: start.getTime(),
           label: start.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" }),
-          completado: 0, parcial: 0, cancelado: 0, otro: 0, hours: 0,
           total: items.length,
-          items: items
-            .map((ex) => ({
-              status: normStatus(ex.execution_status ?? ""),
-              executed_at: ex.executed_at,
-              hours: ex.duration_hours,
-              ot_number: ex.work_order?.ot_number ?? null,
-              equipo: ex.work_order?.equipo_raw ?? ex.work_order?.equipo_code ?? null,
-            }))
-            .sort((a, b) => (a.executed_at < b.executed_at ? 1 : -1)),
-        };
-        for (const ex of items) {
-          row[normStatus(ex.execution_status ?? "")] += 1;
-          row.hours += Number(ex.duration_hours) || 0;
-        }
-        rows.push(row);
+          hours: items.reduce((a, it) => a + (Number(it.hours) || 0), 0),
+          items,
+        });
       }
       return rows;
     };
@@ -692,33 +672,22 @@ function ExecutionTrendCard({ recentExecutions }: { recentExecutions: any[] }) {
     const curr = buildWindow(0, range);
     const prev = buildWindow(range, range);
     const sum = (rows: any[]) => rows.reduce((a, r) => a + r.total, 0);
-    return {
-      chart: curr,
-      currTotal: sum(curr),
-      prevTotal: sum(prev),
-      hasOtro: curr.some((r) => r.otro > 0),
-    };
-  }, [recentExecutions, range]);
+    return { chart: curr, currTotal: sum(curr), prevTotal: sum(prev) };
+  }, [realizadas, range]);
 
-  const series = ["completado", "parcial", "cancelado", ...(hasOtro ? ["otro"] : [])];
-  const topVisible = [...series].reverse().find((k) => !hidden.has(k));
   const delta = prevTotal > 0 ? Math.round(((currTotal - prevTotal) / prevTotal) * 100) : null;
   const selectedRow = selectedKey != null ? chart.find((r) => r.key === selectedKey) ?? null : null;
-
-  const toggle = (k: string) =>
-    setHidden((h) => { const n = new Set(h); n.has(k) ? n.delete(k) : n.add(k); return n; });
-
-  const totalAll = recentExecutions.length;
+  const totalAll = realizadas.length;
 
   return (
     <div className="bg-white rounded-2xl border border-gray-200 p-5">
-      {/* Cabecera: título + comparativa + selector de rango */}
+      {/* Cabecera: título + selector de rango */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-1">
         <div className="flex items-center gap-2">
           <h2 className="text-sm font-semibold text-gray-700" style={{ fontFamily: "'Syne', sans-serif" }}>
-            Ejecuciones de OT por semana
+            OT realizadas por semana
           </h2>
-          <InfoTip text="Ejecuciones registradas contra órdenes de trabajo, agrupadas por semana (lunes a domingo). Barras apiladas por resultado. Click en una semana para ver el detalle; click en la leyenda para ocultar un resultado." />
+          <InfoTip text="Órdenes de trabajo con estado Realizado, agrupadas por semana (lunes a domingo) según su fecha de ejecución. Click en una semana para ver el detalle." />
         </div>
         <div className="flex items-center gap-1 rounded-lg bg-gray-100 p-0.5">
           {RANGE_OPTIONS.map((r) => (
@@ -732,7 +701,7 @@ function ExecutionTrendCard({ recentExecutions }: { recentExecutions: any[] }) {
 
       {/* Resumen del período */}
       <div className="flex items-center gap-3 mb-4 text-xs text-gray-500">
-        <span><span className="font-bold text-gray-900 text-sm">{currTotal}</span> en {range} semanas</span>
+        <span><span className="font-bold text-gray-900 text-sm">{currTotal}</span> realizadas en {range} semanas</span>
         {delta != null && (
           <span className="inline-flex items-center gap-1 font-semibold"
             style={{ color: delta > 0 ? "#16A34A" : delta < 0 ? "#DC2626" : "#94A3B8" }}>
@@ -743,24 +712,9 @@ function ExecutionTrendCard({ recentExecutions }: { recentExecutions: any[] }) {
       </div>
 
       {totalAll === 0 ? (
-        <div className="h-36 flex items-center justify-center text-sm text-gray-400">Sin ejecuciones de OT registradas.</div>
+        <div className="h-36 flex items-center justify-center text-sm text-gray-400">Sin OT realizadas con fecha de ejecución.</div>
       ) : (
         <>
-          {/* Leyenda clickeable */}
-          <div className="flex flex-wrap gap-3 mb-3">
-            {series.map((k) => {
-              const meta = EXEC_STATUS_META[k];
-              const off = hidden.has(k);
-              return (
-                <button key={k} onClick={() => toggle(k)}
-                  className={`inline-flex items-center gap-1.5 text-xs font-medium transition-opacity ${off ? "opacity-40" : ""}`}>
-                  <span className="w-2.5 h-2.5 rounded-full" style={{ background: meta.color }} />
-                  <span className={off ? "line-through text-gray-400" : "text-gray-600"}>{meta.label}</span>
-                </button>
-              );
-            })}
-          </div>
-
           <ResponsiveContainer width="100%" height={190}>
             <BarChart data={chart} barSize={range > 12 ? 14 : 26}
               onClick={(state: any) => {
@@ -774,11 +728,7 @@ function ExecutionTrendCard({ recentExecutions }: { recentExecutions: any[] }) {
               <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#94A3B8" }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
               <YAxis tick={{ fontSize: 11, fill: "#94A3B8" }} axisLine={false} tickLine={false} allowDecimals={false} />
               <Tooltip cursor={{ fill: "#F8FAFC" }} content={<ExecTooltip />} />
-              {series.map((k) => (
-                <Bar key={k} dataKey={k} stackId="a" fill={EXEC_STATUS_META[k].color}
-                  hide={hidden.has(k)} name={EXEC_STATUS_META[k].label}
-                  radius={k === topVisible ? [4, 4, 0, 0] : [0, 0, 0, 0]} />
-              ))}
+              <Bar dataKey="total" fill={REALIZADA_COLOR} name="Realizadas" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
 
@@ -787,27 +737,24 @@ function ExecutionTrendCard({ recentExecutions }: { recentExecutions: any[] }) {
             <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-3">
               <div className="flex items-center justify-between mb-2">
                 <p className="text-xs font-semibold text-gray-700">
-                  Semana del {selectedRow.label} · {selectedRow.total} ejecución{selectedRow.total === 1 ? "" : "es"}
+                  Semana del {selectedRow.label} · {selectedRow.total} realizada{selectedRow.total === 1 ? "" : "s"}
                   {selectedRow.hours > 0 && <span className="font-normal text-gray-400"> · {selectedRow.hours}h</span>}
                 </p>
                 <button onClick={() => setSelectedKey(null)} className="text-gray-400 hover:text-gray-600 text-sm" title="Cerrar">×</button>
               </div>
               {selectedRow.items.length === 0 ? (
-                <p className="text-xs text-gray-400 py-2">Sin ejecuciones esa semana.</p>
+                <p className="text-xs text-gray-400 py-2">Sin OT realizadas esa semana.</p>
               ) : (
                 <div className="space-y-1 max-h-52 overflow-y-auto">
-                  {selectedRow.items.map((it: any, i: number) => {
-                    const meta = EXEC_STATUS_META[it.status];
-                    return (
-                      <div key={i} className="flex items-center gap-2 text-xs bg-white rounded-lg border border-gray-100 px-2.5 py-1.5">
-                        <span className="w-2 h-2 rounded-full shrink-0" style={{ background: meta.color }} title={meta.label} />
-                        {it.ot_number != null && <span className="font-mono text-gray-400 shrink-0">#{it.ot_number}</span>}
-                        <span className="text-gray-800 truncate flex-1">{it.equipo ?? "—"}</span>
-                        {it.hours != null && <span className="text-gray-400 shrink-0">{it.hours}h</span>}
-                        <span className="text-gray-400 shrink-0">{new Date(it.executed_at).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })}</span>
-                      </div>
-                    );
-                  })}
+                  {selectedRow.items.map((it: any, i: number) => (
+                    <div key={i} className="flex items-center gap-2 text-xs bg-white rounded-lg border border-gray-100 px-2.5 py-1.5">
+                      <span className="w-2 h-2 rounded-full shrink-0" style={{ background: REALIZADA_COLOR }} />
+                      {it.ot_number != null && <span className="font-mono text-gray-400 shrink-0">#{it.ot_number}</span>}
+                      <span className="text-gray-800 truncate flex-1">{it.equipo ?? "—"}</span>
+                      {it.hours != null && <span className="text-gray-400 shrink-0">{it.hours}h</span>}
+                      <span className="text-gray-400 shrink-0">{new Date(it.executed_at).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })}</span>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
@@ -825,17 +772,8 @@ function ExecTooltip({ active, payload }: any) {
   return (
     <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 shadow-sm text-xs">
       <p className="font-semibold text-gray-700 mb-1">Semana del {row.label}</p>
-      {["completado", "parcial", "cancelado", "otro"].map((k) =>
-        row[k] > 0 ? (
-          <div key={k} className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full" style={{ background: EXEC_STATUS_META[k].color }} />
-            <span className="text-gray-500">{EXEC_STATUS_META[k].label}:</span>
-            <span className="font-semibold text-gray-800">{row[k]}</span>
-          </div>
-        ) : null
-      )}
-      <div className="mt-1 pt-1 border-t border-gray-100 text-gray-500">
-        Total: <span className="font-semibold text-gray-800">{row.total}</span>
+      <div className="text-gray-500">
+        Realizadas: <span className="font-semibold text-gray-800">{row.total}</span>
         {row.hours > 0 && <> · {row.hours}h</>}
       </div>
     </div>
