@@ -60,7 +60,7 @@ const QUIEN_COLORS: Record<string, string> = {
 export default function DashboardClient({
   appUser, equipment,
   plants, sectors, sectorStatusLog, recentExecutions, otStats, tipoTally, quienTally, canEdit,
-  repairWindows = [], repairWeekLabel = "",
+  repairWindows = [], repairWeekLabel = "", otMes = 0, mesLabel = "",
 }: {
   appUser: any;
   equipment: any[];
@@ -75,6 +75,8 @@ export default function DashboardClient({
   canEdit: boolean;
   repairWindows?: { plant: string; freeDayLabels: string[]; pendingOT: number }[];
   repairWeekLabel?: string;
+  otMes?: number;
+  mesLabel?: string;
 }) {
   const router = useRouter();
   const [plantFilter, setPlantFilter] = useState("TODAS");
@@ -325,11 +327,12 @@ export default function DashboardClient({
       })()}
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
         <KpiCard label="Total equipos"    value={total}         accent="#0F172A" href={equiposHref()} />
         <KpiCard label="Operativos"       value={operativos}    accent="#22C55E" sub={`${pctOperativo}% del total`} href={equiposHref({ status: "OPERATIVO" })} />
         <KpiCard label="Fuera de servicio"     value={fueraServicio} accent={fueraServicio > 0 ? "#EF4444" : "#22C55E"} href={equiposHref({ status: "FUERA_DE_SERVICIO" })} />
         <KpiCard label="Críticos no operativos" value={criticos}      accent={criticos > 0 ? "#EF4444" : "#22C55E"} href={equiposHref({ criticidad: "ALTA" })} />
+        <KpiCard label="OTs del mes"      value={otMes}         accent="#3B82F6" sub={mesLabel} href="/ordenes" />
       </div>
 
       {/* Charts */}

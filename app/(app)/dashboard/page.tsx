@@ -52,6 +52,18 @@ export default async function DashboardPage() {
   );
   const otStats = OT_ESTADOS.map((estado, i) => ({ estado, count: otCounts[i].count ?? 0 }));
 
+  // ── OTs generadas en el mes corriente (por la fecha de la OT) ────────────────
+  const MESES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+  const hoy = new Date();
+  const y = hoy.getFullYear(), mo = hoy.getMonth();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const mesInicio = `${y}-${pad(mo + 1)}-01`;
+  const mesSig = mo === 11 ? `${y + 1}-01-01` : `${y}-${pad(mo + 2)}-01`;
+  const { count: otMesCount } = await supabase.from("work_orders")
+    .select("id", { count: "exact", head: true }).gte("fecha", mesInicio).lt("fecha", mesSig);
+  const otMes = otMesCount ?? 0;
+  const mesLabel = MESES[mo];
+
   // ── Tipo de trabajo (correctivo/preventivo) y ejecución (propio/contratado) ──
   // Se usan count queries (head) para no chocar con el límite de filas de Supabase.
   const woCount = (build: (q: any) => any) =>
@@ -116,6 +128,8 @@ export default async function DashboardPage() {
     <DashboardClient
       repairWindows={repairWindows}
       repairWeekLabel={repairWeekLabel}
+      otMes={otMes}
+      mesLabel={mesLabel}
       appUser={appUser}
       equipment={equipment ?? []}
       plants={plants ?? []}
