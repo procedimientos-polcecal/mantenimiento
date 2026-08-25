@@ -3,11 +3,16 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 const WEBHOOK_SECRET = process.env.SHEETS_WEBHOOK_SECRET ?? "";
 
-function excelDateToISO(val: string | number | undefined): string | null {
-  if (!val) return null;
+function excelDateToISO(val: string | number | undefined | null): string | null {
+  if (val === null || val === undefined || val === "") return null;
   const n = Number(val);
-  if (isNaN(n) || n < 1) return null;
-  return new Date((n - 25569) * 86400 * 1000).toISOString().slice(0, 10);
+  if (!isNaN(n) && n >= 1) return new Date(Math.floor(n) * 86400 * 1000 - 25569 * 86400 * 1000).toISOString().slice(0, 10);
+  const s = val.toString().trim();
+  let m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);   // d/m/aaaa (es-AR)
+  if (m) return `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
+  m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return s.slice(0, 10);
+  return null;
 }
 
 function extractCode(raw: string): string | null {
