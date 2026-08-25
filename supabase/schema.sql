@@ -1,20 +1,17 @@
 -- ═══════════════════════════════════════════════════════════════
--- SCHEMA CONSOLIDADO — app de Mantenimiento (migraciones 001..036)
--- Generado por concatenación de supabase/migrations/*.sql en orden.
--- OJO: 'ALTER TYPE ... ADD VALUE' (032) puede requerir correrse por
--- separado si el editor lo envuelve en transacción. Si falla ahí,
--- corré esa línea aparte y seguí.
+-- SCHEMA CONSOLIDADO (idempotente) — app de Mantenimiento (001..036)
+-- Re-ejecutable: create type/policy toleran 'ya existe'; tablas usan
+-- IF NOT EXISTS; triggers usan CREATE OR REPLACE. Correr en el SQL
+-- Editor del Supabase destino.
 -- ═══════════════════════════════════════════════════════════════
 
 
--- ╔══════════════════════════════════════════════════════════════
--- ║ 001_initial_schema.sql
--- ╚══════════════════════════════════════════════════════════════
+-- ── 001_initial_schema.sql ──────────────────────────────────────────
 -- Enable UUID extension
 create extension if not exists "uuid-ossp";
 
 -- Plants
-create table plants (
+create table if not exists plants (
   id uuid primary key default uuid_generate_v4(),
   name text not null check (name in ('POLCECAL', 'POLYSAN', 'AMBOS')),
   created_at timestamptz not null default now()
@@ -23,7 +20,7 @@ create table plants (
 insert into plants (name) values ('POLCECAL'), ('POLYSAN'), ('AMBOS');
 
 -- Sectors
-create table sectors (
+create table if not exists sectors (
   id uuid primary key default uuid_generate_v4(),
   plant_id uuid not null references plants(id),
   name text not null,
@@ -31,15 +28,19 @@ create table sectors (
 );
 
 -- Equipment status and criticality enums
+DO $$ BEGIN
 create type equipment_status as enum (
   'OPERATIVO', 'EN_MANTENIMIENTO', 'EN_REPARACION',
   'STANDBY', 'FUERA_DE_SERVICIO', 'DADO_DE_BAJA'
 );
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
+DO $$ BEGIN
 create type criticality_level as enum ('ALTA', 'MEDIA', 'BAJA');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- Equipment
-create table equipment (
+create table if not exists equipment (
   id uuid primary key default uuid_generate_v4(),
   sector_id uuid not null references sectors(id),
   name text not null,
@@ -55,9 +56,11 @@ create table equipment (
 );
 
 -- Users (extends Supabase auth.users)
+DO $$ BEGIN
 create type user_role as enum ('gerente', 'administrador', 'operario', 'admin_sistema');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-create table app_users (
+create table if not exists app_users (
   id uuid primary key references auth.users(id) on delete cascade,
   email text not null unique,
   full_name text not null,
@@ -67,13 +70,15 @@ create table app_users (
 );
 
 -- Maintenance types
+DO $$ BEGIN
 create type maintenance_type as enum (
   'Lubricacion', 'Inspeccion', 'Limpieza',
   'Ajuste', 'Reemplazo', 'Revision_electrica', 'Otro'
 );
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- Equipment checklists
-create table equipment_checklists (
+create table if not exists equipment_checklists (
   id uuid primary key default uuid_generate_v4(),
   equipment_id uuid not null references equipment(id),
   maintenance_type maintenance_type not null,
@@ -85,10 +90,14 @@ create table equipment_checklists (
 );
 
 -- Maintenance schedules
+DO $$ BEGIN
 create type schedule_type as enum ('fixed_interval', 'specific_date');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
 create type schedule_status as enum ('active', 'paused', 'cancelled');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-create table maintenance_schedules (
+create table if not exists maintenance_schedules (
   id uuid primary key default uuid_generate_v4(),
   equipment_id uuid not null references equipment(id),
   checklist_id uuid not null references equipment_checklists(id),
@@ -103,9 +112,11 @@ create table maintenance_schedules (
 );
 
 -- Maintenance executions
+DO $$ BEGIN
 create type execution_status as enum ('pending', 'in_progress', 'completed', 'not_done');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-create table maintenance_executions (
+create table if not exists maintenance_executions (
   id uuid primary key default uuid_generate_v4(),
   schedule_id uuid not null references maintenance_schedules(id),
   equipment_id uuid not null references equipment(id),
@@ -124,7 +135,7 @@ create table maintenance_executions (
 );
 
 -- Equipment status log
-create table equipment_status_log (
+create table if not exists equipment_status_log (
   id uuid primary key default uuid_generate_v4(),
   equipment_id uuid not null references equipment(id),
   old_status equipment_status,
@@ -143,7 +154,7 @@ begin
 end;
 $$ language plpgsql;
 
-create trigger equipment_updated_at
+create or replace trigger equipment_updated_at
   before update on equipment
   for each row execute function update_updated_at();
 
@@ -171,27 +182,53 @@ alter table maintenance_executions enable row level security;
 alter table equipment_status_log enable row level security;
 
 -- RLS policies: authenticated users can read everything
+DO $$ BEGIN
 create policy "authenticated read plants" on plants for select to authenticated using (true);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
 create policy "authenticated read sectors" on sectors for select to authenticated using (true);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
 create policy "authenticated read equipment" on equipment for select to authenticated using (true);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
 create policy "authenticated read app_users" on app_users for select to authenticated using (true);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
 create policy "authenticated read checklists" on equipment_checklists for select to authenticated using (true);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
 create policy "authenticated read schedules" on maintenance_schedules for select to authenticated using (true);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
 create policy "authenticated read executions" on maintenance_executions for select to authenticated using (true);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
 create policy "authenticated read status_log" on equipment_status_log for select to authenticated using (true);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- RLS policies: authenticated users can write (role enforcement in app layer)
+DO $$ BEGIN
 create policy "authenticated write equipment" on equipment for all to authenticated using (true);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
 create policy "authenticated write checklists" on equipment_checklists for all to authenticated using (true);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
 create policy "authenticated write schedules" on maintenance_schedules for all to authenticated using (true);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
 create policy "authenticated write executions" on maintenance_executions for all to authenticated using (true);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
 create policy "authenticated write status_log" on equipment_status_log for all to authenticated using (true);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
 create policy "authenticated write app_users" on app_users for all to authenticated using (true);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 
--- ╔══════════════════════════════════════════════════════════════
--- ║ 002_seed_equipment.sql
--- ╚══════════════════════════════════════════════════════════════
+-- ── 002_seed_equipment.sql ──────────────────────────────────────────
 ﻿-- Sectors
 INSERT INTO sectors (id, plant_id, name) VALUES
   (uuid_generate_v4(), (SELECT id FROM plants WHERE name = 'POLCECAL'), 'Trituración1'),
@@ -452,16 +489,12 @@ INSERT INTO equipment (sector_id, name, code, power_kw, description, status, cri
   ((SELECT id FROM sectors WHERE name = 'Equiposmoviles' AND plant_id = (SELECT id FROM plants WHERE name = 'AMBOS')), 'Camioneta 1', 'EM16', NULL, 'Amarok', 'OPERATIVO', 'MEDIA', NULL);
 
 
--- ╔══════════════════════════════════════════════════════════════
--- ║ 003_last_executed.sql
--- ╚══════════════════════════════════════════════════════════════
+-- ── 003_last_executed.sql ──────────────────────────────────────────
 ALTER TABLE maintenance_schedules
   ADD COLUMN IF NOT EXISTS last_executed_at TIMESTAMPTZ;
 
 
--- ╔══════════════════════════════════════════════════════════════
--- ║ 004_checklist_storage.sql
--- ╚══════════════════════════════════════════════════════════════
+-- ── 004_checklist_storage.sql ──────────────────────────────────────────
 -- Storage bucket for execution photos
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES (
@@ -474,17 +507,23 @@ VALUES (
 ON CONFLICT (id) DO NOTHING;
 
 -- Storage RLS policies
+DO $$ BEGIN
 CREATE POLICY "Authenticated users can upload execution photos"
 ON storage.objects FOR INSERT TO authenticated
 WITH CHECK (bucket_id = 'execution-photos');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
+DO $$ BEGIN
 CREATE POLICY "Authenticated users can view execution photos"
 ON storage.objects FOR SELECT TO authenticated
 USING (bucket_id = 'execution-photos');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
+DO $$ BEGIN
 CREATE POLICY "Authenticated users can delete own photos"
 ON storage.objects FOR DELETE TO authenticated
 USING (bucket_id = 'execution-photos' AND auth.uid()::text = (storage.foldername(name))[1]);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- Add photo_urls and checklist columns to executions if missing
 ALTER TABLE maintenance_executions
@@ -498,9 +537,7 @@ ALTER TABLE equipment_checklists
   ADD COLUMN IF NOT EXISTS name TEXT;
 
 
--- ╔══════════════════════════════════════════════════════════════
--- ║ 005_schedules_extra_columns.sql
--- ╚══════════════════════════════════════════════════════════════
+-- ── 005_schedules_extra_columns.sql ──────────────────────────────────────────
 -- Relax NOT NULL constraints that block form submission
 ALTER TABLE maintenance_schedules
   ALTER COLUMN checklist_id DROP NOT NULL,
@@ -532,9 +569,7 @@ ALTER TABLE maintenance_executions
   ADD COLUMN IF NOT EXISTS checklist_responses JSONB;
 
 
--- ╔══════════════════════════════════════════════════════════════
--- ║ 006_schema_fixes.sql
--- ╚══════════════════════════════════════════════════════════════
+-- ── 006_schema_fixes.sql ──────────────────────────────────────────
 -- ══════════════════════════════════════════════════════
 -- Migration 006: Comprehensive schema fixes
 -- ══════════════════════════════════════════════════════
@@ -542,10 +577,12 @@ ALTER TABLE maintenance_executions
 -- 1. Replace schedule_type enum with app values
 ALTER TABLE maintenance_schedules ALTER COLUMN schedule_type TYPE TEXT;
 DROP TYPE IF EXISTS schedule_type;
+DO $$ BEGIN
 CREATE TYPE schedule_type AS ENUM (
   'DIARIO','SEMANAL','QUINCENAL','MENSUAL',
   'TRIMESTRAL','SEMESTRAL','ANUAL','PERSONALIZADO','FECHA_FIJA'
 );
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 ALTER TABLE maintenance_schedules
   ALTER COLUMN schedule_type TYPE schedule_type USING 'MENSUAL'::schedule_type;
 
@@ -592,9 +629,7 @@ ALTER TABLE equipment_checklists
   ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT true;
 
 
--- ╔══════════════════════════════════════════════════════════════
--- ║ 007_add_executed_by.sql
--- ╚══════════════════════════════════════════════════════════════
+-- ── 007_add_executed_by.sql ──────────────────────────────────────────
 -- Add executed_by column to maintenance_executions
 ALTER TABLE maintenance_executions
   ADD COLUMN IF NOT EXISTS executed_by UUID REFERENCES app_users(id);
@@ -604,9 +639,7 @@ ALTER TABLE maintenance_schedules
   ADD COLUMN IF NOT EXISTS reference_photos JSONB DEFAULT '[]';
 
 
--- ╔══════════════════════════════════════════════════════════════
--- ║ 008_rls_app_users.sql
--- ╚══════════════════════════════════════════════════════════════
+-- ── 008_rls_app_users.sql ──────────────────────────────────────────
 -- Confirm unconfirmed users
 UPDATE auth.users
 SET email_confirmed_at = NOW()
@@ -621,12 +654,15 @@ DROP POLICY IF EXISTS "users_read_all"  ON app_users;
 DROP POLICY IF EXISTS "admins_write"    ON app_users;
 
 -- Anyone authenticated can read all users (needed for assignment lists)
+DO $$ BEGIN
 CREATE POLICY "users_read_all"
   ON app_users FOR SELECT
   TO authenticated
   USING (true);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- Only admins can insert/update/delete
+DO $$ BEGIN
 CREATE POLICY "admins_write"
   ON app_users FOR ALL
   TO authenticated
@@ -637,11 +673,10 @@ CREATE POLICY "admins_write"
       AND u.role IN ('admin_sistema', 'administrador')
     )
   );
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 
--- ╔══════════════════════════════════════════════════════════════
--- ║ 009_rls_fix.sql
--- ╚══════════════════════════════════════════════════════════════
+-- ── 009_rls_fix.sql ──────────────────────────────────────────
 -- ══════════════════════════════════════════════════════
 -- Migration 009: Fix RLS across all tables
 -- ══════════════════════════════════════════════════════
@@ -667,46 +702,70 @@ DROP POLICY IF EXISTS "users_read_all" ON app_users;
 DROP POLICY IF EXISTS "users_read_own" ON app_users;
 DROP POLICY IF EXISTS "admins_write"   ON app_users;
 
+DO $$ BEGIN
 CREATE POLICY "users_read_all" ON app_users
   FOR SELECT TO authenticated USING (true);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
+DO $$ BEGIN
 CREATE POLICY "admins_write" ON app_users
   FOR ALL TO authenticated USING (is_admin());
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- ── plants ───────────────────────────────────────────
 ALTER TABLE plants ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "plants_read"  ON plants;
 DROP POLICY IF EXISTS "plants_write" ON plants;
+DO $$ BEGIN
 CREATE POLICY "plants_read"  ON plants FOR SELECT TO authenticated USING (true);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
 CREATE POLICY "plants_write" ON plants FOR ALL    TO authenticated USING (is_admin());
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- ── sectors ──────────────────────────────────────────
 ALTER TABLE sectors ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "sectors_read"  ON sectors;
 DROP POLICY IF EXISTS "sectors_write" ON sectors;
+DO $$ BEGIN
 CREATE POLICY "sectors_read"  ON sectors FOR SELECT TO authenticated USING (true);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
 CREATE POLICY "sectors_write" ON sectors FOR ALL    TO authenticated USING (is_admin());
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- ── equipment ────────────────────────────────────────
 ALTER TABLE equipment ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "equipment_read"  ON equipment;
 DROP POLICY IF EXISTS "equipment_write" ON equipment;
+DO $$ BEGIN
 CREATE POLICY "equipment_read"  ON equipment FOR SELECT TO authenticated USING (true);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
 CREATE POLICY "equipment_write" ON equipment FOR ALL    TO authenticated USING (is_admin());
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- ── equipment_status_log ─────────────────────────────
 ALTER TABLE equipment_status_log ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "status_log_read"  ON equipment_status_log;
 DROP POLICY IF EXISTS "status_log_write" ON equipment_status_log;
+DO $$ BEGIN
 CREATE POLICY "status_log_read"  ON equipment_status_log FOR SELECT TO authenticated USING (true);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
 CREATE POLICY "status_log_write" ON equipment_status_log FOR ALL    TO authenticated USING (is_admin());
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- ── equipment_checklists ─────────────────────────────
 ALTER TABLE equipment_checklists ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "checklists_read"  ON equipment_checklists;
 DROP POLICY IF EXISTS "checklists_write" ON equipment_checklists;
+DO $$ BEGIN
 CREATE POLICY "checklists_read"  ON equipment_checklists FOR SELECT TO authenticated USING (true);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
 CREATE POLICY "checklists_write" ON equipment_checklists FOR ALL    TO authenticated USING (is_admin());
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- ── maintenance_schedules ────────────────────────────
 ALTER TABLE maintenance_schedules ENABLE ROW LEVEL SECURITY;
@@ -715,33 +774,49 @@ DROP POLICY IF EXISTS "schedules_write"  ON maintenance_schedules;
 DROP POLICY IF EXISTS "schedules_insert" ON maintenance_schedules;
 DROP POLICY IF EXISTS "schedules_update" ON maintenance_schedules;
 DROP POLICY IF EXISTS "schedules_delete" ON maintenance_schedules;
+DO $$ BEGIN
 CREATE POLICY "schedules_read"   ON maintenance_schedules FOR SELECT TO authenticated USING (true);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 -- Any authenticated user can update (needed when recording executions advances next_date)
+DO $$ BEGIN
 CREATE POLICY "schedules_update" ON maintenance_schedules FOR UPDATE TO authenticated USING (true);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 -- Only admins can create or delete schedules
+DO $$ BEGIN
 CREATE POLICY "schedules_insert" ON maintenance_schedules FOR INSERT TO authenticated WITH CHECK (is_admin());
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
 CREATE POLICY "schedules_delete" ON maintenance_schedules FOR DELETE TO authenticated USING (is_admin());
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- ── maintenance_executions ───────────────────────────
 ALTER TABLE maintenance_executions ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "executions_read"  ON maintenance_executions;
 DROP POLICY IF EXISTS "executions_write" ON maintenance_executions;
 -- All authenticated users can read and insert executions
+DO $$ BEGIN
 CREATE POLICY "executions_read"   ON maintenance_executions FOR SELECT TO authenticated USING (true);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
 CREATE POLICY "executions_insert" ON maintenance_executions FOR INSERT TO authenticated WITH CHECK (true);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
 CREATE POLICY "executions_update" ON maintenance_executions FOR UPDATE TO authenticated USING (is_admin());
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
 CREATE POLICY "executions_delete" ON maintenance_executions FOR DELETE TO authenticated USING (is_admin());
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 
--- ╔══════════════════════════════════════════════════════════════
--- ║ 010_plant_status.sql
--- ╚══════════════════════════════════════════════════════════════
+-- ── 010_plant_status.sql ──────────────────────────────────────────
 -- ══════════════════════════════════════════════════════
 -- Migration 010: Plant status + status log
 -- ══════════════════════════════════════════════════════
 
 -- Enum for plant status
+DO $$ BEGIN
 CREATE TYPE plant_status AS ENUM ('ACTIVA', 'PARADA', 'EN_REPARACION');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- Add status column to plants
 ALTER TABLE plants
@@ -762,20 +837,28 @@ CREATE TABLE IF NOT EXISTS plant_status_log (
 ALTER TABLE plant_status_log ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "psl_read"  ON plant_status_log;
 DROP POLICY IF EXISTS "psl_write" ON plant_status_log;
+DO $$ BEGIN
 CREATE POLICY "psl_read"  ON plant_status_log FOR SELECT TO authenticated USING (true);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
 CREATE POLICY "psl_write" ON plant_status_log FOR ALL    TO authenticated USING (is_admin());
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 
--- ╔══════════════════════════════════════════════════════════════
--- ║ 011_work_orders.sql
--- ╚══════════════════════════════════════════════════════════════
+-- ── 011_work_orders.sql ──────────────────────────────────────────
 -- ══════════════════════════════════════════════════════
 -- Migration 011: Work orders (OT) from Google Sheets
 -- ══════════════════════════════════════════════════════
 
+DO $$ BEGIN
 CREATE TYPE ot_estado  AS ENUM ('REALIZADO', 'EN_PROCESO', 'POR_HACER', 'ATRASADO');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
 CREATE TYPE ot_tipo    AS ENUM ('PROGRAMADO', 'CORRECTIVO', 'PREDICTIVO', 'MEJORA');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
 CREATE TYPE ot_quien   AS ENUM ('INTERNO', 'CONTRATADO', 'MIXTO');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 CREATE TABLE IF NOT EXISTS work_orders (
   id            UUID        PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -810,13 +893,15 @@ CREATE INDEX IF NOT EXISTS wo_code_idx      ON work_orders(equipo_code);
 ALTER TABLE work_orders ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "wo_read"  ON work_orders;
 DROP POLICY IF EXISTS "wo_write" ON work_orders;
+DO $$ BEGIN
 CREATE POLICY "wo_read"  ON work_orders FOR SELECT TO authenticated USING (true);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
 CREATE POLICY "wo_write" ON work_orders FOR ALL    TO authenticated USING (is_admin());
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 
--- ╔══════════════════════════════════════════════════════════════
--- ║ 012_sector_status.sql
--- ╚══════════════════════════════════════════════════════════════
+-- ── 012_sector_status.sql ──────────────────────────────────────────
 -- ══════════════════════════════════════════════════════
 -- Migration 012: Sector status + log
 -- ══════════════════════════════════════════════════════
@@ -838,13 +923,15 @@ CREATE TABLE IF NOT EXISTS sector_status_log (
 ALTER TABLE sector_status_log ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "ssl_read"  ON sector_status_log;
 DROP POLICY IF EXISTS "ssl_write" ON sector_status_log;
+DO $$ BEGIN
 CREATE POLICY "ssl_read"  ON sector_status_log FOR SELECT TO authenticated USING (true);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
 CREATE POLICY "ssl_write" ON sector_status_log FOR ALL    TO authenticated USING (is_admin());
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 
--- ╔══════════════════════════════════════════════════════════════
--- ║ 013_work_orders_v2.sql
--- ╚══════════════════════════════════════════════════════════════
+-- ── 013_work_orders_v2.sql ──────────────────────────────────────────
 -- ══════════════════════════════════════════════════════
 -- Migration 013: Work orders v2 — bidirectional + auto-status
 -- ══════════════════════════════════════════════════════
@@ -894,15 +981,13 @@ END;
 $$;
 
 DROP TRIGGER IF EXISTS ot_auto_equipment_status ON work_orders;
-CREATE TRIGGER ot_auto_equipment_status
+create or replace trigger ot_auto_equipment_status
   AFTER INSERT OR UPDATE OF estado ON work_orders
   FOR EACH ROW
   EXECUTE FUNCTION sync_equipment_status_from_ot();
 
 
--- ╔══════════════════════════════════════════════════════════════
--- ║ 014_daily_plans.sql
--- ╚══════════════════════════════════════════════════════════════
+-- ── 014_daily_plans.sql ──────────────────────────────────────────
 -- ══════════════════════════════════════════════════════
 -- Migration 014: Daily work plans
 -- ══════════════════════════════════════════════════════
@@ -947,15 +1032,21 @@ DROP POLICY IF EXISTS "dp_write" ON daily_plans;
 DROP POLICY IF EXISTS "dpi_read"  ON daily_plan_items;
 DROP POLICY IF EXISTS "dpi_write" ON daily_plan_items;
 
+DO $$ BEGIN
 CREATE POLICY "dp_read"   ON daily_plans      FOR SELECT TO authenticated USING (true);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
 CREATE POLICY "dp_write"  ON daily_plans      FOR ALL    TO authenticated USING (is_admin());
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
 CREATE POLICY "dpi_read"  ON daily_plan_items FOR SELECT TO authenticated USING (true);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
 CREATE POLICY "dpi_write" ON daily_plan_items FOR ALL    TO authenticated USING (is_admin());
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 
--- ╔══════════════════════════════════════════════════════════════
--- ║ 015_fix_status_log_trigger.sql
--- ╚══════════════════════════════════════════════════════════════
+-- ── 015_fix_status_log_trigger.sql ──────────────────────────────────────────
 -- ══════════════════════════════════════════════════════
 -- Migration 015: Fix equipment_status_log changed_by nullable
 --                + fix auto-status trigger
@@ -1004,9 +1095,7 @@ END;
 $$;
 
 
--- ╔══════════════════════════════════════════════════════════════
--- ║ 016_wo_schedule_link.sql
--- ╚══════════════════════════════════════════════════════════════
+-- ── 016_wo_schedule_link.sql ──────────────────────────────────────────
 -- ══════════════════════════════════════════════════════
 -- Migration 016: Vínculo mantenimiento ↔ orden de trabajo
 -- ══════════════════════════════════════════════════════
@@ -1019,9 +1108,7 @@ ALTER TABLE work_orders
 CREATE INDEX IF NOT EXISTS wo_schedule_idx ON work_orders(schedule_id);
 
 
--- ╔══════════════════════════════════════════════════════════════
--- ║ 017_avisos.sql
--- ╚══════════════════════════════════════════════════════════════
+-- ── 017_avisos.sql ──────────────────────────────────────────
 -- ══════════════════════════════════════════════════════
 -- Migration 017: Avisos (integración con hoja de Google Sheets)
 -- ══════════════════════════════════════════════════════
@@ -1058,13 +1145,15 @@ CREATE INDEX IF NOT EXISTS avisos_urgencia_idx  ON avisos(urgencia);
 ALTER TABLE avisos ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "avisos_read"  ON avisos;
 DROP POLICY IF EXISTS "avisos_write" ON avisos;
+DO $$ BEGIN
 CREATE POLICY "avisos_read"  ON avisos FOR SELECT TO authenticated USING (true);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
 CREATE POLICY "avisos_write" ON avisos FOR ALL    TO authenticated USING (is_admin());
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 
--- ╔══════════════════════════════════════════════════════════════
--- ║ 018_ot_frecuencia.sql
--- ╚══════════════════════════════════════════════════════════════
+-- ── 018_ot_frecuencia.sql ──────────────────────────────────────────
 -- ══════════════════════════════════════════════════════
 -- Migration 018: Frecuencia, próxima fecha y fotos en OTs
 -- ══════════════════════════════════════════════════════
@@ -1076,9 +1165,7 @@ ALTER TABLE work_orders
   ADD COLUMN IF NOT EXISTS reference_photos text[];
 
 
--- ╔══════════════════════════════════════════════════════════════
--- ║ 019_avisos_photos.sql
--- ╚══════════════════════════════════════════════════════════════
+-- ── 019_avisos_photos.sql ──────────────────────────────────────────
 -- ══════════════════════════════════════════════════════
 -- Migration 019: Fotos de referencia en avisos
 -- ══════════════════════════════════════════════════════
@@ -1088,9 +1175,7 @@ ALTER TABLE avisos
   ADD COLUMN IF NOT EXISTS reference_photos text[];
 
 
--- ╔══════════════════════════════════════════════════════════════
--- ║ 020_executions_to_ot.sql
--- ╚══════════════════════════════════════════════════════════════
+-- ── 020_executions_to_ot.sql ──────────────────────────────────────────
 -- ══════════════════════════════════════════════════════
 -- Migration 020: Ejecuciones cuelgan de OTs (no de programados)
 -- ══════════════════════════════════════════════════════
@@ -1107,9 +1192,7 @@ ALTER TABLE maintenance_executions
 CREATE INDEX IF NOT EXISTS exec_wo_idx ON maintenance_executions(work_order_id);
 
 
--- ╔══════════════════════════════════════════════════════════════
--- ║ 021_equipment_parts.sql
--- ╚══════════════════════════════════════════════════════════════
+-- ── 021_equipment_parts.sql ──────────────────────────────────────────
 -- ══════════════════════════════════════════════════════
 -- Migration 021: Repuestos por equipo (catálogo)
 -- ══════════════════════════════════════════════════════
@@ -1130,16 +1213,18 @@ CREATE INDEX IF NOT EXISTS parts_equipment_idx ON equipment_parts(equipment_id);
 ALTER TABLE equipment_parts ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "parts_read"  ON equipment_parts;
 DROP POLICY IF EXISTS "parts_write" ON equipment_parts;
+DO $$ BEGIN
 CREATE POLICY "parts_read"  ON equipment_parts FOR SELECT TO authenticated USING (true);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
 CREATE POLICY "parts_write" ON equipment_parts FOR ALL    TO authenticated USING (is_admin());
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- Los avisos también pueden llevar repuestos asignados (como las OTs)
 ALTER TABLE avisos ADD COLUMN IF NOT EXISTS repuesto text;
 
 
--- ╔══════════════════════════════════════════════════════════════
--- ║ 022_produccion.sql
--- ╚══════════════════════════════════════════════════════════════
+-- ── 022_produccion.sql ──────────────────────────────────────────
 -- ══════════════════════════════════════════════════════
 -- Migration 022: Planificación de producción semanal
 -- ══════════════════════════════════════════════════════
@@ -1163,13 +1248,15 @@ CREATE INDEX IF NOT EXISTS production_week_idx ON production_plan(week_start);
 ALTER TABLE production_plan ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "prod_read"  ON production_plan;
 DROP POLICY IF EXISTS "prod_write" ON production_plan;
+DO $$ BEGIN
 CREATE POLICY "prod_read"  ON production_plan FOR SELECT TO authenticated USING (true);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
 CREATE POLICY "prod_write" ON production_plan FOR ALL    TO authenticated USING (is_admin());
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 
--- ╔══════════════════════════════════════════════════════════════
--- ║ 023_ot_orden.sql
--- ╚══════════════════════════════════════════════════════════════
+-- ── 023_ot_orden.sql ──────────────────────────────────────────
 -- ══════════════════════════════════════════════════════
 -- Migration 023: Orden manual de OTs (priorización)
 -- ══════════════════════════════════════════════════════
@@ -1182,9 +1269,7 @@ ALTER TABLE work_orders
 CREATE INDEX IF NOT EXISTS wo_orden_manual_idx ON work_orders(orden_manual);
 
 
--- ╔══════════════════════════════════════════════════════════════
--- ║ 024_equipment_ficha.sql
--- ╚══════════════════════════════════════════════════════════════
+-- ── 024_equipment_ficha.sql ──────────────────────────────────────────
 -- ══════════════════════════════════════════════════════
 -- Migration 024: Ficha técnica del equipo (BD Equipos v3)
 -- ══════════════════════════════════════════════════════
@@ -1218,9 +1303,7 @@ ALTER TABLE equipment
   ADD COLUMN IF NOT EXISTS foto_registro_url        text;
 
 
--- ╔══════════════════════════════════════════════════════════════
--- ║ 025_tipos_componentes.sql
--- ╚══════════════════════════════════════════════════════════════
+-- ── 025_tipos_componentes.sql ──────────────────────────────────────────
 -- ══════════════════════════════════════════════════════
 -- Migration 025: Tipos de equipo (referencia) y componentes por equipo
 -- ══════════════════════════════════════════════════════
@@ -1264,8 +1347,12 @@ ALTER TABLE equipment ADD COLUMN IF NOT EXISTS tipo_id text REFERENCES equipment
 ALTER TABLE equipment_types ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "types_read"  ON equipment_types;
 DROP POLICY IF EXISTS "types_write" ON equipment_types;
+DO $$ BEGIN
 CREATE POLICY "types_read"  ON equipment_types FOR SELECT TO authenticated USING (true);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
 CREATE POLICY "types_write" ON equipment_types FOR ALL    TO authenticated USING (is_admin());
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- ── Componentes por equipo (hoja COMPONENTES) ───────────────────────────────
 CREATE TABLE IF NOT EXISTS equipment_components (
@@ -1290,13 +1377,15 @@ CREATE INDEX IF NOT EXISTS components_equipment_idx ON equipment_components(equi
 ALTER TABLE equipment_components ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "components_read"  ON equipment_components;
 DROP POLICY IF EXISTS "components_write" ON equipment_components;
+DO $$ BEGIN
 CREATE POLICY "components_read"  ON equipment_components FOR SELECT TO authenticated USING (true);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
 CREATE POLICY "components_write" ON equipment_components FOR ALL    TO authenticated USING (is_admin());
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 
--- ╔══════════════════════════════════════════════════════════════
--- ║ 026_ordenes_servicio.sql
--- ╚══════════════════════════════════════════════════════════════
+-- ── 026_ordenes_servicio.sql ──────────────────────────────────────────
 -- ══════════════════════════════════════════════════════
 -- Migration 026: Órdenes de Servicio (OS)
 -- ══════════════════════════════════════════════════════
@@ -1342,13 +1431,15 @@ CREATE INDEX IF NOT EXISTS os_equipment_idx ON ordenes_servicio(equipment_id);
 ALTER TABLE ordenes_servicio ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "os_read"  ON ordenes_servicio;
 DROP POLICY IF EXISTS "os_write" ON ordenes_servicio;
+DO $$ BEGIN
 CREATE POLICY "os_read"  ON ordenes_servicio FOR SELECT TO authenticated USING (true);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
 CREATE POLICY "os_write" ON ordenes_servicio FOR ALL    TO authenticated USING (is_admin());
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 
--- ╔══════════════════════════════════════════════════════════════
--- ║ 027_wo_parts.sql
--- ╚══════════════════════════════════════════════════════════════
+-- ── 027_wo_parts.sql ──────────────────────────────────────────
 -- ══════════════════════════════════════════════════════
 -- Migration 027: Repuestos necesarios por OT
 -- ══════════════════════════════════════════════════════
@@ -1369,13 +1460,15 @@ CREATE INDEX IF NOT EXISTS wo_parts_idx ON work_order_parts(work_order_id);
 ALTER TABLE work_order_parts ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "wo_parts_read"  ON work_order_parts;
 DROP POLICY IF EXISTS "wo_parts_write" ON work_order_parts;
+DO $$ BEGIN
 CREATE POLICY "wo_parts_read"  ON work_order_parts FOR SELECT TO authenticated USING (true);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
 CREATE POLICY "wo_parts_write" ON work_order_parts FOR ALL    TO authenticated USING (true);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 
--- ╔══════════════════════════════════════════════════════════════
--- ║ 028_contratistas.sql
--- ╚══════════════════════════════════════════════════════════════
+-- ── 028_contratistas.sql ──────────────────────────────────────────
 -- ══════════════════════════════════════════════════════
 -- Migration 028: Contratistas (opciones editables)
 -- ══════════════════════════════════════════════════════
@@ -1391,16 +1484,18 @@ CREATE TABLE IF NOT EXISTS contratistas (
 ALTER TABLE contratistas ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "contratistas_read"  ON contratistas;
 DROP POLICY IF EXISTS "contratistas_write" ON contratistas;
+DO $$ BEGIN
 CREATE POLICY "contratistas_read"  ON contratistas FOR SELECT TO authenticated USING (true);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
 CREATE POLICY "contratistas_write" ON contratistas FOR ALL    TO authenticated USING (is_admin());
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 INSERT INTO contratistas (nombre) VALUES ('PIPARO'), ('CANDIA')
 ON CONFLICT (nombre) DO NOTHING;
 
 
--- ╔══════════════════════════════════════════════════════════════
--- ║ 029_operarios.sql
--- ╚══════════════════════════════════════════════════════════════
+-- ── 029_operarios.sql ──────────────────────────────────────────
 -- ══════════════════════════════════════════════════════
 -- Migration 029: Operarios (opciones por posición, editables)
 -- ══════════════════════════════════════════════════════
@@ -1417,8 +1512,12 @@ CREATE TABLE IF NOT EXISTS operarios (
 ALTER TABLE operarios ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "operarios_read"  ON operarios;
 DROP POLICY IF EXISTS "operarios_write" ON operarios;
+DO $$ BEGIN
 CREATE POLICY "operarios_read"  ON operarios FOR SELECT TO authenticated USING (true);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
 CREATE POLICY "operarios_write" ON operarios FOR ALL    TO authenticated USING (is_admin());
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 INSERT INTO operarios (slot, nombre) VALUES
   (1, 'Lopez'), (1, 'Agosta'), (1, 'Aguirre'), (1, 'Lucas'), (1, 'Ambos'),
@@ -1427,9 +1526,7 @@ INSERT INTO operarios (slot, nombre) VALUES
 ON CONFLICT (slot, nombre) DO NOTHING;
 
 
--- ╔══════════════════════════════════════════════════════════════
--- ║ 030_comparativas.sql
--- ╚══════════════════════════════════════════════════════════════
+-- ── 030_comparativas.sql ──────────────────────────────────────────
 -- ══════════════════════════════════════════════════════
 -- Migration 030: Comparativas de proveedores (por OS)
 -- ══════════════════════════════════════════════════════
@@ -1467,13 +1564,15 @@ CREATE INDEX IF NOT EXISTS comp_sector_idx ON os_comparativas(sector);
 ALTER TABLE os_comparativas ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "comp_read"  ON os_comparativas;
 DROP POLICY IF EXISTS "comp_write" ON os_comparativas;
+DO $$ BEGIN
 CREATE POLICY "comp_read"  ON os_comparativas FOR SELECT TO authenticated USING (true);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
 CREATE POLICY "comp_write" ON os_comparativas FOR ALL    TO authenticated USING (is_admin());
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 
--- ╔══════════════════════════════════════════════════════════════
--- ║ 031_os_fecha_pedido.sql
--- ╚══════════════════════════════════════════════════════════════
+-- ── 031_os_fecha_pedido.sql ──────────────────────────────────────────
 -- ══════════════════════════════════════════════════════
 -- Migration 031: Seguimiento de OS — fecha de pedido
 -- ══════════════════════════════════════════════════════
@@ -1483,9 +1582,7 @@ CREATE POLICY "comp_write" ON os_comparativas FOR ALL    TO authenticated USING 
 ALTER TABLE ordenes_servicio ADD COLUMN IF NOT EXISTS fecha_pedido date;
 
 
--- ╔══════════════════════════════════════════════════════════════
--- ║ 032_role_jefe_produccion.sql
--- ╚══════════════════════════════════════════════════════════════
+-- ── 032_role_jefe_produccion.sql ──────────────────────────────────────────
 -- ══════════════════════════════════════════════════════
 -- Migration 032: Rol "Jefe de Producción"
 -- ══════════════════════════════════════════════════════
@@ -1497,9 +1594,7 @@ ALTER TABLE ordenes_servicio ADD COLUMN IF NOT EXISTS fecha_pedido date;
 ALTER TYPE user_role ADD VALUE IF NOT EXISTS 'jefe_produccion';
 
 
--- ╔══════════════════════════════════════════════════════════════
--- ║ 033_produccion_extra.sql
--- ╚══════════════════════════════════════════════════════════════
+-- ── 033_produccion_extra.sql ──────────────────────────────────────────
 -- ══════════════════════════════════════════════════════
 -- Migration 033: Planificación de producción — info extra
 -- ══════════════════════════════════════════════════════
@@ -1511,9 +1606,7 @@ ALTER TABLE production_plan
   ADD COLUMN IF NOT EXISTS responsable text;
 
 
--- ╔══════════════════════════════════════════════════════════════
--- ║ 034_ot_no_fuerza_mantenimiento.sql
--- ╚══════════════════════════════════════════════════════════════
+-- ── 034_ot_no_fuerza_mantenimiento.sql ──────────────────────────────────────────
 -- ══════════════════════════════════════════════════════
 -- Migration 034: Iniciar una OT ya no fuerza "En mantenimiento"
 -- ══════════════════════════════════════════════════════
@@ -1558,9 +1651,7 @@ END;
 $$;
 
 
--- ╔══════════════════════════════════════════════════════════════
--- ║ 035_equipos_unificar_mantenimiento.sql
--- ╚══════════════════════════════════════════════════════════════
+-- ── 035_equipos_unificar_mantenimiento.sql ──────────────────────────────────────────
 -- ══════════════════════════════════════════════════════
 -- Migration 035: Unificar estado de equipos "En reparación" en "En mantenimiento"
 -- ══════════════════════════════════════════════════════
@@ -1571,9 +1662,7 @@ $$;
 UPDATE equipment SET status = 'EN_MANTENIMIENTO' WHERE status = 'EN_REPARACION';
 
 
--- ╔══════════════════════════════════════════════════════════════
--- ║ 036_ot_requiere_parada_sector.sql
--- ╚══════════════════════════════════════════════════════════════
+-- ── 036_ot_requiere_parada_sector.sql ──────────────────────────────────────────
 -- ══════════════════════════════════════════════════════
 -- Migration 036: OT — "requiere parar el sector"
 -- ══════════════════════════════════════════════════════
