@@ -131,3 +131,82 @@ Además del esquema, portar estas **features/código** al ERP:
 6. Migrar datos solo de lo que no sea espejo de Sheets (OT/OS/avisos se
    re-sincronizan); los maestros (equipos/sectores/empresas) ya existen en el
    ERP → probablemente no haga falta migrarlos.
+
+> **OS aparte** (decisión tomada): no se fusiona con Compras. El delta crea
+> `ordenes_servicio` + `os_comparativas` propias del módulo mantenimiento.
+
+---
+
+## 7. Permisos — unificar con el esquema del ERP
+
+El ERP ya maneja permisos por módulo: `usuario_modulos` (por usuario) con
+`modulo ∈ {…, mantenimiento, compras}` y `nivel_acceso ∈ {lectura, edicion,
+admin}`. Compras además usa `compras_aprobadores` para la capa de aprobación.
+
+**Decisión: unificar** — mantenimiento usa el MISMO mecanismo que compras
+(`usuario_modulos WHERE modulo='mantenimiento'`), sin inventar un modelo nuevo.
+
+Mapeo de los roles de esta app → `nivel_acceso`:
+
+| Rol de esta app | nivel_acceso (mantenimiento) | Puede |
+|---|---|---|
+| admin_sistema / administrador | **admin** | todo + config (tipos, contratistas, operarios) + gestión de usuarios del módulo |
+| jefe_produccion | **edicion** | operar (incluida planificación de producción) |
+| gerente | **lectura** | solo ver |
+| operario | **lectura** (o edicion acotada) | ver (o registrar, si se decide) |
+
+Gating por acción (equivalencias en el código de esta app):
+
+| Acción | Hoy (esta app) | Con el ERP |
+|---|---|---|
+| Ver (dashboard, listados) | autenticado | `nivel >= lectura` en mantenimiento |
+| Crear/editar OT, cambiar estado, registrar ejecución | admin_sistema / administrador | `nivel >= edicion` |
+| Cargar producción | admin_sistema / **jefe_produccion** | `nivel >= edicion` |
+| Cargar/editar comparativas y OS | admin_sistema / administrador | `nivel >= edicion` |
+| Config (tipos, contratistas, operarios) y usuarios | admin_sistema | `nivel = admin` |
+
+**Implementación**: crear un helper en la base (p. ej. `mant_nivel(uid)` que
+lea `usuario_modulos`) y reemplazar en cada endpoint los chequeos
+`role IN ('admin_sistema','administrador')` / `is_admin()` por el nivel
+correspondiente. Si más adelante hace falta una capa de "aprobador" para las OS
+(estado POR APROBAR), se puede sumar una tabla análoga a `compras_aprobadores`.
+
+> Si preferís **más granularidad** que lectura/edicion/admin (p. ej. distinguir
+> "solo producción"), se agrega un permiso fino puntual en ese endpoint; pero la
+> base sigue siendo `usuario_modulos`, no un modelo paralelo.
+
+---
+
+## 8. Paso a paso (a ejecutar en el proyecto del ERP)
+
+1. **No tocar** lo idéntico: `equipos`, `sectores`, `empresas`,
+   `ordenes_trabajo`, `mantenimientos_programados/ejecuciones`,
+   `equipos_checklists`, `*_status_log`. Ya existen y sirven.
+2. **Correr el delta**: aplicar `supabase/integracion-delta.sql` en el Supabase
+   del ERP (crea `avisos`, `operarios`, `contratistas`, `production_plan`,
+   `ordenes_servicio`, `os_comparativas`, `equipment_types/components/parts`,
+   `work_order_parts`, y las columnas `requiere_parada_sector` /
+   `fecha_pedido` / ficha de equipos). Revisá primero que no colisione con algo
+   del ERP (usa `IF NOT EXISTS`).
+3. **RLS**: definir las policies de las tablas nuevas según el patrón del ERP
+   (helper sobre `usuario_modulos`). El delta las dejó afuera a propósito.
+4. **Permisos (§7)**: crear el helper de nivel y reescribir los chequeos de
+   permisos en los endpoints de mantenimiento.
+5. **Portar el código** (features de §5) al repo del ERP, adaptando:
+   - Nombres de tabla en las queries: `equipment`→`equipos`,
+     `work_orders`→`ordenes_trabajo`, `plants`→`empresas`,
+     `sectors`→`sectores`, `app_users`→`usuarios`,
+     `equipment_checklists`→`equipos_checklists`,
+     `maintenance_executions`→`mantenimientos_ejecuciones`,
+     `maintenance_schedules`→`mantenimientos_programados`.
+   - Los chequeos de permisos (§7).
+   *(Las tablas nuevas del delta conservan su nombre en inglés — menos cambios
+   de código.)*
+6. **Integraciones**: cargar las env de Google/Drive/Resend en el ERP (ver
+   MIGRACION.md), compartir planillas + carpeta de Drive con la service account
+   que use el ERP, re-desplegar el Apps Script de fotos si cambia.
+7. **Datos**: re-sincronizar OT/OS/avisos/comparativas desde Sheets en el ERP;
+   los maestros (equipos/sectores/empresas) ya están. Migrar a mano lo poco que
+   sea propio (operarios, contratistas, production_plan) si querés conservarlo.
+8. **Verificar**: checklist de MUDANZA.md §8 adaptado (login, syncs, estados a
+   Sheets, registrar realizado → K/V/W, dashboard, permisos por nivel).
