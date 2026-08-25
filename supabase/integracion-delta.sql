@@ -52,7 +52,7 @@ CREATE INDEX IF NOT EXISTS avisos_urgencia_idx  ON avisos(urgencia);
 -- ══════════════════════════════════════════════════════
 -- Campos rescatados del viejo formulario de mantenimiento, ahora en la OT.
 
-ALTER TABLE work_orders
+ALTER TABLE ordenes_trabajo
   ADD COLUMN IF NOT EXISTS frecuencia       text,     -- MENSUAL, SEMANAL, etc. (o null)
   ADD COLUMN IF NOT EXISTS proxima_fecha    date,
   ADD COLUMN IF NOT EXISTS reference_photos text[];
@@ -121,7 +121,7 @@ CREATE INDEX IF NOT EXISTS production_week_idx ON production_plan(week_start);
 -- Permite arrastrar las OTs para fijar un orden propio, además del
 -- orden automático por prioridad/estado/criticidad/antigüedad.
 
-ALTER TABLE work_orders
+ALTER TABLE ordenes_trabajo
   ADD COLUMN IF NOT EXISTS orden_manual integer;
 
 CREATE INDEX IF NOT EXISTS wo_orden_manual_idx ON ordenes_trabajo(orden_manual);
@@ -133,7 +133,7 @@ CREATE INDEX IF NOT EXISTS wo_orden_manual_idx ON ordenes_trabajo(orden_manual);
 -- ══════════════════════════════════════════════════════
 -- Campos técnicos por equipo, basados en la hoja EQUIPOS.
 
-ALTER TABLE equipment
+ALTER TABLE equipos
   ADD COLUMN IF NOT EXISTS tipo_equipo              text,
   ADD COLUMN IF NOT EXISTS descripcion_proceso      text,
   ADD COLUMN IF NOT EXISTS marca                    text,
@@ -397,6 +397,6 @@ ALTER TABLE production_plan
 -- como alerta (mientras la OT esté pendiente) en el listado de OT, en la
 -- planificación de producción y en las tarjetas de sector del dashboard.
 
-ALTER TABLE work_orders
+ALTER TABLE ordenes_trabajo
   ADD COLUMN IF NOT EXISTS requiere_parada_sector boolean NOT NULL DEFAULT false;
 
