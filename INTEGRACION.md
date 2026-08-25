@@ -210,3 +210,44 @@ correspondiente. Si más adelante hace falta una capa de "aprobador" para las OS
    sea propio (operarios, contratistas, production_plan) si querés conservarlo.
 8. **Verificar**: checklist de MUDANZA.md §8 adaptado (login, syncs, estados a
    Sheets, registrar realizado → K/V/W, dashboard, permisos por nivel).
+
+---
+
+## 9. Permisos en el código (traducir los chequeos)
+
+Base de datos: correr **`supabase/integracion-permisos.sql`** (crea
+`mant_nivel()` / `mant_puede_ver()` / `mant_puede_editar()` / `mant_es_admin()`
+y las RLS de las tablas nuevas).
+
+En los endpoints de esta app, reemplazar el patrón viejo (que leía
+`app_users.role`) por el nivel del módulo. Helper sugerido:
+
+```ts
+// lib/permisos.ts
+type Nivel = "lectura" | "edicion" | "admin";
+const ORD: Record<Nivel, number> = { lectura: 1, edicion: 2, admin: 3 };
+
+export async function mantNivel(supabase: any, userId: string): Promise<Nivel | null> {
+  const { data } = await supabase
+    .from("usuario_modulos")
+    .select("nivel")
+    .eq("usuario_id", userId)
+    .eq("modulo", "mantenimiento")
+    .maybeSingle();
+  return (data?.nivel as Nivel) ?? null;
+}
+export const nivelGte = (n: Nivel | null, min: Nivel) => !!n && ORD[n] >= ORD[min];
+```
+
+Reemplazos en cada ruta:
+
+| Chequeo viejo | Nuevo |
+|---|---|
+| `role IN ('admin_sistema','administrador')` (crear/editar OT, OS, comparativas, avisos) | `nivelGte(nivel, 'edicion')` |
+| `role === 'admin_sistema' \|\| 'jefe_produccion'` (producción) | `nivelGte(nivel, 'edicion')` |
+| `role === 'admin_sistema'` (config: tipos, contratistas, operarios, usuarios) | `nivelGte(nivel, 'admin')` |
+| `is_admin()` (RLS) | `mant_puede_editar()` / `mant_es_admin()` |
+| lectura / ver | `nivelGte(nivel, 'lectura')` (o dejar abierto a autenticados) |
+
+Y `canEdit` en las páginas server (que hoy sale de `app_users.role`) pasa a
+salir de `mantNivel(...) >= 'edicion'`.
